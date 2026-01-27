@@ -21,21 +21,33 @@ function App() {
   const [bookingResult, setBookingResult] = useState(null);
 
   // Search services
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
+// Helper function to remove Vietnamese accents
+const removeAccents = (str) => {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+};
+
+// Search services
+const handleSearch = async () => {
+  if (!searchQuery.trim()) return;
+  
+  setLoading(true);
+  try {
+    // Remove accents from search query
+    const normalizedQuery = removeAccents(searchQuery);
     
-    setLoading(true);
-    try {
-      const response = await fetch(
-        `${API_URL}/api/search/services?q=${encodeURIComponent(searchQuery)}`
-      );
-      const data = await response.json();
-      setSearchResults(data.data || []);
-    } catch (error) {
-      alert('Lỗi tìm kiếm: ' + error.message);
-    }
-    setLoading(false);
-  };
+    const response = await fetch(
+      `${API_URL}/api/search/services?q=${encodeURIComponent(normalizedQuery)}`
+    );
+    const data = await response.json();
+    setSearchResults(data.data || []);
+  } catch (error) {
+    alert('Lỗi tìm kiếm: ' + error.message);
+  }
+  setLoading(false);
+};
 
   // Get branches for service
   const handleSelectService = async (service) => {
