@@ -28,8 +28,9 @@ function App() {
   });
   const [bookingResult, setBookingResult] = useState(null);
   const [packageComponents, setPackageComponents] = useState({});
-  const [showAllPackages, setShowAllPackages] = useState(false); // ADD THIS LINE HERE
-
+  const [showAllPackages, setShowAllPackages] = useState(false); 
+  const [testCart, setTestCart] = useState([]);
+  const [showCart, setShowCart] = useState(false);
 
 
 
@@ -115,6 +116,91 @@ const calculateRelevance = (service, searchQuery) => {
   }
   
   return score;
+};
+
+// NEW: Cart management functions
+const addToCart = (test) => {
+  if (testCart.find(t => t.id === test.id)) {
+    alert('Xét nghiệm này đã có trong giỏ');
+    return;
+  }
+  setTestCart([...testCart, test]);
+  setShowCart(true);
+};
+
+const removeFromCart = (testId) => {
+  setTestCart(testCart.filter(t => t.id !== testId));
+  if (testCart.length <= 1) {
+    setShowCart(false);
+  }
+};
+
+const clearCart = () => {
+  if (window.confirm('Xóa tất cả xét nghiệm trong giỏ?')) {
+    setTestCart([]);
+    setShowCart(false);
+  }
+};
+
+const cartTotal = testCart.reduce((sum, test) => 
+  sum + (parseFloat(test.discounted_price) || 0), 0
+);
+
+const handleBookCart = async () => {
+  if (testCart.length === 0) {
+    alert('Giỏ xét nghiệm trống');
+    return;
+  }
+  
+  // Create a virtual service object for cart
+  const cartService = {
+    id: 'cart',
+    provider_service_name_vn: `${testCart.length} xét nghiệm đơn lẻ`,
+    discounted_price: cartTotal,
+    service_type: 'custom_bundle',
+    providers: testCart[0].providers,
+    cart_items: testCart
+  };
+  
+  setSelectedService(cartService);
+  setLoading(true);
+  
+  try {
+    // Get branches that offer ALL tests in cart
+    const branchAvailability = {};
+    
+    for (const test of testCart) {
+      const response = await fetch(`${API_URL}/api/services/${test.id}/branches`);
+      const data = await response.json();
+      
+      data.data?.forEach(branch => {
+        if (!branchAvailability[branch.id]) {
+          branchAvailability[branch.id] = {
+            branch,
+            availableTests: []
+          };
+        }
+        branchAvailability[branch.id].availableTests.push(test.id);
+      });
+    }
+    
+    // Filter branches that have ALL tests
+    const validBranches = Object.values(branchAvailability)
+      .filter(b => b.availableTests.length === testCart.length)
+      .map(b => b.branch);
+    
+    if (validBranches.length === 0) {
+      alert('Không tìm thấy chi nhánh nào cung cấp tất cả các xét nghiệm đã chọn');
+      setLoading(false);
+      return;
+    }
+    
+    setBranches(validBranches);
+    setShowBranchModal(true);
+  } catch (error) {
+    alert('Lỗi tải chi nhánh: ' + error.message);
+  }
+  setLoading(false);
 };
 
 // Search services (MODIFY THIS EXISTING FUNCTION)
@@ -429,19 +515,30 @@ const handleSearch = async () => {
                         )}
 
                         <div className="result-actions">
-                          {test.discounted_price ? (
-                            <button 
-                              className="btn-primary"
-                              onClick={() => handleSelectService(test)}
-                            >
-                              Chọn chi nhánh
-                            </button>
-                          ) : (
-                            <button className="btn-disabled" disabled>
-                              Không thể đặt trực tuyến
-                            </button>
-                          )}
-                        </div>
+  {test.discounted_price ? (
+    <>
+      {testCart.find(t => t.id === test.id) ? (
+        <button 
+          className="btn-added"
+          onClick={() => removeFromCart(test.id)}
+        >
+          ✓ Đã thêm
+        </button>
+      ) : (
+        <button 
+          className="btn-primary"
+          onClick={() => addToCart(test)}
+        >
+          + Thêm vào giỏ
+        </button>
+      )}
+    </>
+  ) : (
+    <button className="btn-disabled" disabled>
+      Không thể đặt trực tuyến
+    </button>
+  )}
+</div>
                       </div>
                     ))}
                   </div>
@@ -611,21 +708,42 @@ const handleSearch = async () => {
                 </table>
               </div>
 
-              <div className="detail-group">
-                <h3>Dịch vụ</h3>
-                <table>
-                  <tbody>
-                    <tr>
-                      <td>Tên dịch vụ:</td>
-                      <td><strong>{selectedService.provider_service_name_vn}</strong></td>
-                    </tr>
-                    <tr>
-                      <td>Nhà cung cấp:</td>
-                      <td>{selectedService.providers?.brand_name_vn}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+<div className="detail-group">
+  <h3>Dịch vụ</h3>
+  <table>
+    <tbody>
+      {selectedService.service_type === 'custom_bundle' ? (
+        <>
+          <tr>
+            <td>Loại:</td>
+            <td><strong>Đặt lẻ nhiều xét nghiệm</strong></td>
+          </tr>
+          <tr>
+            <td>Xét nghiệm:</td>
+            <td>
+              {selectedService.cart_items.map((item, idx) => (
+                <div key={item.id}>
+                  {idx + 1}. {item.provider_service_name_vn}
+                </div>
+              ))}
+            </td>
+          </tr>
+        </>
+      ) : (
+        <>
+          <tr>
+            <td>Tên dịch vụ:</td>
+            <td><strong>{selectedService.provider_service_name_vn}</strong></td>
+          </tr>
+        </>
+      )}
+      <tr>
+        <td>Nhà cung cấp:</td>
+        <td>{selectedService.providers?.brand_name_vn}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
 
               <div className="detail-group">
                 <h3>Chi nhánh</h3>
@@ -768,6 +886,63 @@ const handleSearch = async () => {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* NEW: FLOATING CART */}
+      {testCart.length > 0 && (
+        <div className="floating-cart">
+          <div className="cart-header" onClick={() => setShowCart(!showCart)}>
+            <div className="cart-header-left">
+              <span className="cart-icon">🛒</span>
+              <span className="cart-title">Giỏ xét nghiệm ({testCart.length})</span>
+            </div>
+            <div className="cart-header-right">
+              <span className="cart-total">{cartTotal.toLocaleString('vi-VN')} đ</span>
+              <span className="cart-toggle">{showCart ? '▼' : '▲'}</span>
+            </div>
+          </div>
+          
+          {showCart && (
+            <div className="cart-body">
+              <div className="cart-items">
+                {testCart.map((test, idx) => (
+                  <div key={test.id} className="cart-item">
+                    <span className="cart-item-number">{idx + 1}.</span>
+                    <div className="cart-item-details">
+                      <div className="cart-item-name">{test.provider_service_name_vn}</div>
+                      <div className="cart-item-price">
+                        {parseFloat(test.discounted_price).toLocaleString('vi-VN')} đ
+                      </div>
+                    </div>
+                    <button 
+                      className="cart-item-remove"
+                      onClick={() => removeFromCart(test.id)}
+                      title="Xóa khỏi giỏ"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="cart-summary">
+                <div className="cart-summary-row">
+                  <span>Tổng cộng:</span>
+                  <span className="cart-summary-total">{cartTotal.toLocaleString('vi-VN')} đ</span>
+                </div>
+              </div>
+              
+              <div className="cart-actions">
+                <button className="btn-secondary btn-cart-clear" onClick={clearCart}>
+                  Xóa tất cả
+                </button>
+                <button className="btn-primary btn-cart-book" onClick={handleBookCart}>
+                  Chọn chi nhánh
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
