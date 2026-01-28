@@ -29,13 +29,7 @@ function App() {
   const [bookingResult, setBookingResult] = useState(null);
   const [packageComponents, setPackageComponents] = useState({});
 
-  // Helper to remove accents
-  const removeAccents = (str) => {
-    return str
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase();
-  };
+
 
 // Helper to remove accents
 const removeAccents = (str) => {
@@ -95,40 +89,28 @@ const calculateRelevance = (service, searchQuery) => {
 };
 
   // Search services
-// Search services
-const handleSearch = async () => {
-  if (!searchQuery.trim()) return;
-  
-  setLoading(true);
-  try {
-    const normalizedQuery = removeAccents(searchQuery);
-    const response = await fetch(
-      `${API_URL}/api/search/services?q=${encodeURIComponent(normalizedQuery)}`
-    );
-    const data = await response.json();
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
     
-    // Separate packages and individual tests
-    let pkgs = data.data.filter(s => s.service_type === 'package');
-    let tests = data.data.filter(s => s.service_type === 'individual_test');
-    
-    // NEW: Sort by relevance
-    pkgs = pkgs.map(pkg => ({
-      ...pkg,
-      relevanceScore: calculateRelevance(pkg, searchQuery)
-    })).sort((a, b) => b.relevanceScore - a.relevanceScore);
-    
-    tests = tests.map(test => ({
-      ...test,
-      relevanceScore: calculateRelevance(test, searchQuery)
-    })).sort((a, b) => b.relevanceScore - a.relevanceScore);
-    
-    setPackages(pkgs);
-    setIndividualTests(tests);
-  } catch (error) {
-    alert('Lỗi tìm kiếm: ' + error.message);
-  }
-  setLoading(false);
-};
+    setLoading(true);
+    try {
+      const normalizedQuery = removeAccents(searchQuery);
+      const response = await fetch(
+        `${API_URL}/api/search/services?q=${encodeURIComponent(normalizedQuery)}`
+      );
+      const data = await response.json();
+      
+      // Separate packages and individual tests
+      const pkgs = data.data.filter(s => s.service_type === 'package');
+      const tests = data.data.filter(s => s.service_type === 'individual_test');
+      
+      setPackages(pkgs);
+      setIndividualTests(tests);
+    } catch (error) {
+      alert('Lỗi tìm kiếm: ' + error.message);
+    }
+    setLoading(false);
+  };
 
   // Get package components
   const loadPackageComponents = async (packageId) => {
