@@ -39,7 +39,7 @@ const removeAccents = (str) => {
     .toLowerCase();
 };
 
-// NEW: Calculate relevance score
+// NEW: Add this function AFTER removeAccents
 const calculateRelevance = (service, searchQuery) => {
   const query = removeAccents(searchQuery).trim();
   const name = removeAccents(service.provider_service_name_vn);
@@ -88,29 +88,40 @@ const calculateRelevance = (service, searchQuery) => {
   return score;
 };
 
-  // Search services
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
+// Search services (MODIFY THIS EXISTING FUNCTION)
+const handleSearch = async () => {
+  if (!searchQuery.trim()) return;
+  
+  setLoading(true);
+  try {
+    const normalizedQuery = removeAccents(searchQuery);
+    const response = await fetch(
+      `${API_URL}/api/search/services?q=${encodeURIComponent(normalizedQuery)}`
+    );
+    const data = await response.json();
     
-    setLoading(true);
-    try {
-      const normalizedQuery = removeAccents(searchQuery);
-      const response = await fetch(
-        `${API_URL}/api/search/services?q=${encodeURIComponent(normalizedQuery)}`
-      );
-      const data = await response.json();
-      
-      // Separate packages and individual tests
-      const pkgs = data.data.filter(s => s.service_type === 'package');
-      const tests = data.data.filter(s => s.service_type === 'individual_test');
-      
-      setPackages(pkgs);
-      setIndividualTests(tests);
-    } catch (error) {
-      alert('Lỗi tìm kiếm: ' + error.message);
-    }
-    setLoading(false);
-  };
+    // Separate packages and individual tests
+    let pkgs = data.data.filter(s => s.service_type === 'package');
+    let tests = data.data.filter(s => s.service_type === 'individual_test');
+    
+    // NEW: Sort by relevance
+    pkgs = pkgs.map(pkg => ({
+      ...pkg,
+      relevanceScore: calculateRelevance(pkg, searchQuery)
+    })).sort((a, b) => b.relevanceScore - a.relevanceScore);
+    
+    tests = tests.map(test => ({
+      ...test,
+      relevanceScore: calculateRelevance(test, searchQuery)
+    })).sort((a, b) => b.relevanceScore - a.relevanceScore);
+    
+    setPackages(pkgs);
+    setIndividualTests(tests);
+  } catch (error) {
+    alert('Lỗi tìm kiếm: ' + error.message);
+  }
+  setLoading(false);
+};
 
   // Get package components
   const loadPackageComponents = async (packageId) => {
