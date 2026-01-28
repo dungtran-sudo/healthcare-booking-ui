@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL;
+const [showAllPackages, setShowAllPackages] = useState(false);
 
 function App() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -292,64 +293,100 @@ const handleSearch = async () => {
               <div className="results-section">
                 <h2>Gói dịch vụ ({packages.length})</h2>
                 <div className="results-list">
-                  {packages.map(pkg => (
-                    <div key={pkg.id} className="result-card package-card">
-                      <div className="result-header">
-                        <div className="result-title">{pkg.provider_service_name_vn}</div>
-                        <div className="result-meta">
-                          <span className="provider-name">{pkg.providers?.brand_name_vn}</span>
-                          <span className="price">{pkg.discounted_price?.toLocaleString('vi-VN')} đ</span>
-                        </div>
-                      </div>
-                      
-                      {pkg.highlighted_benefits && pkg.highlighted_benefits.length > 0 && (
-                        <div className="benefits">
-                          {pkg.highlighted_benefits.slice(0, 3).map((benefit, i) => (
-                            <div key={i} className="benefit-item">{benefit}</div>
-                          ))}
-                        </div>
-                      )}
+{/* Show top 3 by default */}
+{packages.slice(0, showAllPackages ? packages.length : 3).map((pkg, index) => (
+  <div key={pkg.id} className="result-card package-card">
+    {index === 0 && (
+      <div className="recommended-badge">KHUYẾN NGHỊ</div>
+    )}
+    
+    <div className="result-header">
+      <div className="result-title">{pkg.provider_service_name_vn}</div>
+      <div className="result-meta">
+        <span className="provider-name">{pkg.providers?.brand_name_vn}</span>
+        <span className="price">{pkg.discounted_price?.toLocaleString('vi-VN')} đ</span>
+      </div>
+    </div>
 
-                      <div className="result-actions">
-                        <button 
-                          className="btn-secondary"
-                          onClick={() => loadPackageComponents(pkg.id)}
-                        >
-                          {expandedPackage === pkg.id ? 'Ẩn chi tiết' : 'Xem gói bao gồm'}
-                        </button>
-                        <button 
-                          className="btn-primary"
-                          onClick={() => handleSelectService(pkg)}
-                        >
-                          Chọn chi nhánh
-                        </button>
-                      </div>
+    {/* NEW: Suitable For Section */}
+    {pkg.suitable_for && pkg.suitable_for.length > 0 && (
+      <div className="suitable-for-box">
+        <div className="suitable-for-header">PHÙ HỢP VỚI:</div>
+        <div className="suitable-for-list">
+          {pkg.suitable_for.map((item, i) => (
+            <div key={i} className="suitable-for-item">{item}</div>
+          ))}
+        </div>
+        {pkg.target_age_group && (
+          <div className="age-group">Độ tuổi: {pkg.target_age_group}</div>
+        )}
+      </div>
+    )}
 
-                      {/* Package components expansion */}
-                      {expandedPackage === pkg.id && packageComponents[pkg.id] && (
-                        <div className="package-components">
-                          <div className="components-header">
-                            Gói bao gồm {packageComponents[pkg.id].length} xét nghiệm:
-                          </div>
-                          <div className="components-list">
-                            {packageComponents[pkg.id].map((comp, idx) => (
-                              <div key={idx} className="component-item">
-                                <span className="component-number">{idx + 1}.</span>
-                                <span className="component-name">
-                                  {comp.component?.display_name || comp.component?.provider_service_name_vn}
-                                </span>
-                                {(comp.component?.display_price || comp.component?.discounted_price) && (
-                                  <span className="component-price">
-                                    {(comp.component?.display_price || comp.component?.discounted_price)?.toLocaleString('vi-VN')} đ
-                                  </span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+    {/* Key Benefits */}
+    {pkg.key_benefits && pkg.key_benefits.length > 0 && (
+      <div className="benefits">
+        {pkg.key_benefits.slice(0, 3).map((benefit, i) => (
+          <div key={i} className="benefit-item">{benefit}</div>
+        ))}
+      </div>
+    )}
+
+    <div className="result-actions">
+      <button 
+        className="btn-secondary"
+        onClick={() => loadPackageComponents(pkg.id)}
+      >
+        {expandedPackage === pkg.id ? 'Ẩn chi tiết' : 'Xem gói bao gồm'}
+      </button>
+      <button 
+        className="btn-primary btn-choose-package"
+        onClick={() => handleSelectService(pkg)}
+      >
+        CHỌN GÓI NÀY
+      </button>
+    </div>
+
+    {/* Package components expansion */}
+    {expandedPackage === pkg.id && packageComponents[pkg.id] && (
+      <div className="package-components">
+        <div className="components-header">
+          Gói bao gồm {packageComponents[pkg.id].length} xét nghiệm:
+        </div>
+        <div className="components-list">
+          {packageComponents[pkg.id].map((comp, idx) => (
+            <div key={idx} className="component-item">
+              <span className="component-number">{idx + 1}.</span>
+              <span className="component-name">
+                {comp.component?.display_name || comp.component?.provider_service_name_vn}
+              </span>
+              {(comp.component?.display_price || comp.component?.discounted_price) && (
+                <span className="component-price">
+                  {(comp.component?.display_price || comp.component?.discounted_price)?.toLocaleString('vi-VN')} đ
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+))}
+
+{/* Show More button */}
+{packages.length > 3 && (
+  <div className="show-more-section">
+    <button 
+      className="btn-show-more"
+      onClick={() => setShowAllPackages(!showAllPackages)}
+    >
+      {showAllPackages 
+        ? 'Thu gọn' 
+        : `Xem thêm ${packages.length - 3} gói khác`
+      }
+    </button>
+  </div>
+)}
                 </div>
               </div>
             )}
