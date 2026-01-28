@@ -37,29 +37,98 @@ function App() {
       .toLowerCase();
   };
 
+// Helper to remove accents
+const removeAccents = (str) => {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+};
+
+// NEW: Calculate relevance score
+const calculateRelevance = (service, searchQuery) => {
+  const query = removeAccents(searchQuery).trim();
+  const name = removeAccents(service.provider_service_name_vn);
+  const description = removeAccents(service.short_description || '');
+  
+  let score = 0;
+  
+  // Exact match in name
+  if (name === query) {
+    score += 100;
+  }
+  
+  // Name starts with query
+  else if (name.startsWith(query)) {
+    score += 50;
+  }
+  
+  // Query appears in name
+  else if (name.includes(query)) {
+    score += 30;
+  }
+  
+  // Individual words match
+  else {
+    const queryWords = query.split(/\s+/).filter(w => w.length > 2);
+    queryWords.forEach(word => {
+      if (name.includes(word)) {
+        score += 15;
+      }
+      if (description.includes(word)) {
+        score += 5;
+      }
+    });
+  }
+  
+  // Boost for packages
+  if (service.service_type === 'package') {
+    score += 10;
+  }
+  
+  // Penalty for very long names (less specific)
+  if (name.length > 100) {
+    score -= 5;
+  }
+  
+  return score;
+};
+
   // Search services
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
+// Search services
+const handleSearch = async () => {
+  if (!searchQuery.trim()) return;
+  
+  setLoading(true);
+  try {
+    const normalizedQuery = removeAccents(searchQuery);
+    const response = await fetch(
+      `${API_URL}/api/search/services?q=${encodeURIComponent(normalizedQuery)}`
+    );
+    const data = await response.json();
     
-    setLoading(true);
-    try {
-      const normalizedQuery = removeAccents(searchQuery);
-      const response = await fetch(
-        `${API_URL}/api/search/services?q=${encodeURIComponent(normalizedQuery)}`
-      );
-      const data = await response.json();
-      
-      // Separate packages and individual tests
-      const pkgs = data.data.filter(s => s.service_type === 'package');
-      const tests = data.data.filter(s => s.service_type === 'individual_test');
-      
-      setPackages(pkgs);
-      setIndividualTests(tests);
-    } catch (error) {
-      alert('Lỗi tìm kiếm: ' + error.message);
-    }
-    setLoading(false);
-  };
+    // Separate packages and individual tests
+    let pkgs = data.data.filter(s => s.service_type === 'package');
+    let tests = data.data.filter(s => s.service_type === 'individual_test');
+    
+    // NEW: Sort by relevance
+    pkgs = pkgs.map(pkg => ({
+      ...pkg,
+      relevanceScore: calculateRelevance(pkg, searchQuery)
+    })).sort((a, b) => b.relevanceScore - a.relevanceScore);
+    
+    tests = tests.map(test => ({
+      ...test,
+      relevanceScore: calculateRelevance(test, searchQuery)
+    })).sort((a, b) => b.relevanceScore - a.relevanceScore);
+    
+    setPackages(pkgs);
+    setIndividualTests(tests);
+  } catch (error) {
+    alert('Lỗi tìm kiếm: ' + error.message);
+  }
+  setLoading(false);
+};
 
   // Get package components
   const loadPackageComponents = async (packageId) => {
