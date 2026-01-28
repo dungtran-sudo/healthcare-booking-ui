@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL;
-const [showAllPackages, setShowAllPackages] = useState(false);
 
 function App() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -29,6 +28,8 @@ function App() {
   });
   const [bookingResult, setBookingResult] = useState(null);
   const [packageComponents, setPackageComponents] = useState({});
+  const [showAllPackages, setShowAllPackages] = useState(false); // ADD THIS LINE HERE
+
 
 
 
