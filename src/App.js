@@ -40,45 +40,72 @@ const removeAccents = (str) => {
 };
 
 // NEW: Add this function AFTER removeAccents
+// Calculate relevance score
 const calculateRelevance = (service, searchQuery) => {
   const query = removeAccents(searchQuery).trim();
   const name = removeAccents(service.provider_service_name_vn);
   const description = removeAccents(service.short_description || '');
+  const queryWords = query.split(/\s+/).filter(w => w.length > 2);
   
   let score = 0;
   
-  // Exact match in name
+  // Check if ALL query words are present (required for relevance)
+  const allWordsInName = queryWords.every(word => name.includes(word));
+  const allWordsInDescription = queryWords.every(word => description.includes(word));
+  
+  // If search words don't match at all, score should be very low
+  if (!allWordsInName && !allWordsInDescription) {
+    // Check if at least SOME words match
+    const someWordsMatch = queryWords.some(word => name.includes(word) || description.includes(word));
+    if (!someWordsMatch) {
+      return 0; // No match at all
+    }
+    // Partial match - very low score
+    return 5;
+  }
+  
+  // Exact match in name (highest priority)
   if (name === query) {
     score += 100;
   }
   
   // Name starts with query
   else if (name.startsWith(query)) {
-    score += 50;
+    score += 80;
   }
   
-  // Query appears in name
+  // All words appear together in name (phrase match)
   else if (name.includes(query)) {
-    score += 30;
+    score += 60;
   }
   
-  // Individual words match
-  else {
-    const queryWords = query.split(/\s+/).filter(w => w.length > 2);
-    queryWords.forEach(word => {
-      if (name.includes(word)) {
-        score += 15;
-      }
-      if (description.includes(word)) {
-        score += 5;
-      }
-    });
+  // All individual words in name (scattered)
+  else if (allWordsInName) {
+    score += 40;
+    // Bonus if words appear close together
+    const firstWordIndex = name.indexOf(queryWords[0]);
+    const lastWordIndex = name.indexOf(queryWords[queryWords.length - 1]);
+    const distance = lastWordIndex - firstWordIndex;
+    if (distance < 20) score += 10; // Words are close together
+  }
+  
+  // All words in description but not name
+  else if (allWordsInDescription) {
+    score += 20;
   }
   
   // Boost for packages
   if (service.service_type === 'package') {
     score += 10;
   }
+  
+  // Bonus for exact word boundaries (not substring matches)
+  queryWords.forEach(word => {
+    const wordBoundaryRegex = new RegExp(`\\b${word}\\b`);
+    if (wordBoundaryRegex.test(name)) {
+      score += 5;
+    }
+  });
   
   // Penalty for very long names (less specific)
   if (name.length > 100) {
