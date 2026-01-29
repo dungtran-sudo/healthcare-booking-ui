@@ -204,47 +204,61 @@ function App() {
   };
 
   // Search services
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
+const handleSearch = async () => {
+  if (!searchQuery.trim()) return;
+  
+  setLoading(true);
+  try {
+    const normalizedQuery = removeAccents(searchQuery);
+    const response = await fetch(
+      `${API_URL}/api/search/services?q=${encodeURIComponent(normalizedQuery)}`
+    );
+    const data = await response.json();
     
-    setLoading(true);
-    try {
-      const normalizedQuery = removeAccents(searchQuery);
-      const response = await fetch(
-        `${API_URL}/api/search/services?q=${encodeURIComponent(normalizedQuery)}`
-      );
-      const data = await response.json();
-      
-      // Filter packages and tests
-      let pkgs = data.data.filter(s => 
-        s.service_type === 'package' && 
-        s.parent_service_id === null
-      );
-      
-      let tests = data.data.filter(s => 
-        s.service_type === 'atomic'
-      );
-      
-      // Sort by relevance
-      pkgs = pkgs.map(pkg => ({
-        ...pkg,
-        relevanceScore: calculateRelevance(pkg, searchQuery)
-      })).sort((a, b) => b.relevanceScore - a.relevanceScore);
-      
-      tests = tests.map(test => ({
-        ...test,
-        relevanceScore: calculateRelevance(test, searchQuery)
-      })).sort((a, b) => b.relevanceScore - a.relevanceScore);
-      
-      setPackages(pkgs);
-      setIndividualTests(tests);
-      setDisplayedPackages(10);
-      setDisplayedTests(10);
-    } catch (error) {
-      alert('Lỗi tìm kiếm: ' + error.message);
-    }
-    setLoading(false);
-  };
+    // Filter packages: only root packages
+    let pkgs = data.data.filter(s => 
+      s.service_type === 'package' && 
+      s.parent_service_id === null
+    );
+    
+    // Filter tests: ALL atomic services (NEW - no parent filter)
+    let tests = data.data.filter(s => 
+      s.service_type === 'atomic'
+    );
+    
+    // Sort packages by relevance
+    pkgs = pkgs.map(pkg => ({
+      ...pkg,
+      relevanceScore: calculateRelevance(pkg, searchQuery)
+    })).sort((a, b) => b.relevanceScore - a.relevanceScore);
+    
+    // Sort tests by relevance, prioritizing standalone tests
+    tests = tests.map(test => ({
+      ...test,
+      relevanceScore: calculateRelevance(test, searchQuery),
+      isInPackage: test.parent_service_id !== null
+    })).sort((a, b) => {
+      // Primary sort: by relevance
+      if (b.relevanceScore !== a.relevanceScore) {
+        return b.relevanceScore - a.relevanceScore;
+      }
+      // Secondary sort: standalone tests first
+      if (a.isInPackage !== b.isInPackage) {
+        return a.isInPackage ? 1 : -1;
+      }
+      return 0;
+    });
+    
+    setPackages(pkgs);
+    setIndividualTests(tests);
+    setDisplayedPackages(10);
+    setDisplayedTests(10);
+    
+  } catch (error) {
+    alert('Lỗi tìm kiếm: ' + error.message);
+  }
+  setLoading(false);
+};
 
   // Get package components
   const loadPackageComponents = async (packageId) => {
@@ -544,6 +558,20 @@ function App() {
                                 )}
                               </div>
                             </div>
+                            {/* NEW: Show if test is in a package */}
+    {test.parent_service_id && (
+      <div className="test-package-note">
+        💡 Tiết kiệm hơn khi đặt gói
+      </div>
+    )}
+
+    {test.short_description && (
+      <div className="test-description">{test.short_description}</div>
+    )}
+
+    <div className="result-actions">
+      {/* ... existing buttons ... */}
+    </div>
 
                             {test.short_description && (
                               <div className="test-description">{test.short_description}</div>
