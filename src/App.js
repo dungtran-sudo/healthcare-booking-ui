@@ -891,7 +891,30 @@ const handleSearch = async () => {
 
       {/* NEW: FLOATING CART */}
       {testCart.length > 0 && (
-        <div className="floating-cart">
+                <>
+
+        {/* Backdrop for mobile */}
+    {showCart && (
+
+      <div 
+        className="cart-backdrop"
+        onClick={() => setShowCart(false)}
+      />
+    )}
+
+    {/* Mobile FAB - shows when cart is closed */}
+    {!showCart && (
+      <button
+        className="cart-fab-mobile"
+        onClick={() => setShowCart(true)}
+      >
+        <span className="cart-fab-icon">🛒</span>
+        <span className="cart-fab-badge">{testCart.length}</span>
+      </button>
+    )}
+        <div className="floating-cart"
+         
+        >
           <div className="cart-header" onClick={() => setShowCart(!showCart)}>
             <div className="cart-header-left">
               <span className="cart-icon">🛒</span>
@@ -944,6 +967,8 @@ const handleSearch = async () => {
             </div>
           )}
         </div>
+            </>
+
       )}
     </div>
   );
