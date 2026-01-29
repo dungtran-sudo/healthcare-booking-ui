@@ -30,6 +30,10 @@ function App() {
   const [showAllPackages, setShowAllPackages] = useState(false); 
   const [testCart, setTestCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
+  const [displayedPackages, setDisplayedPackages] = useState(10);
+  const [displayedTests, setDisplayedTests] = useState(10);
+  const [selectedPackageForBooking, setSelectedPackageForBooking] = useState(null);
+  const [bookingMode, setBookingMode] = useState(null); // 'package' or 'tests'
   const [activeTab, setActiveTab] = useState('packages'); // ADD THIS
 
 
@@ -121,18 +125,35 @@ const calculateRelevance = (service, searchQuery) => {
 
 // NEW: Cart management functions
 const addToCart = (test) => {
+  // Check if switching from package to tests
+  if (bookingMode === 'package' && selectedPackageForBooking) {
+    const confirmed = window.confirm(
+      `Bạn đang chọn gói "${selectedPackageForBooking.provider_service_name_vn}". Thêm xét nghiệm lẻ sẽ hủy chọn gói. Tiếp tục?`
+    );
+    if (!confirmed) return;
+    
+    // Clear package selection
+    setSelectedPackageForBooking(null);
+  }
+
+  // Check duplicate
   if (testCart.find(t => t.id === test.id)) {
     alert('Xét nghiệm này đã có trong giỏ');
     return;
   }
+  
   setTestCart([...testCart, test]);
-  setShowCart(true);
+  setBookingMode('tests');
+  // Don't auto-open cart on mobile
 };
 
 const removeFromCart = (testId) => {
-  setTestCart(testCart.filter(t => t.id !== testId));
-  if (testCart.length <= 1) {
+  const newCart = testCart.filter(t => t.id !== testId);
+  setTestCart(newCart);
+  
+  if (newCart.length === 0) {
     setShowCart(false);
+    setBookingMode(null);  // ADD THIS LINE
   }
 };
 
@@ -140,6 +161,7 @@ const clearCart = () => {
   if (window.confirm('Xóa tất cả xét nghiệm trong giỏ?')) {
     setTestCart([]);
     setShowCart(false);
+    setBookingMode(null);  // ADD THIS LINE
   }
 };
 
@@ -152,6 +174,58 @@ const handleBookCart = async () => {
     alert('Giỏ xét nghiệm trống');
     return;
   }
+  
+  // Create a virtual service object for cart
+  const cartService = {
+    id: 'cart',
+    provider_service_name_vn: `Đặt lẻ ${testCart.length} xét nghiệm`,
+    discounted_price: cartTotal,
+    service_type: 'custom_bundle',
+    providers: testCart[0].providers,
+    cart_items: testCart
+  };
+  
+  setSelectedService(cartService);
+  setBookingMode('tests');
+  setLoading(true);
+  
+  try {
+    // Get branches that offer ALL tests in cart
+    const branchAvailability = {};
+    
+    for (const test of testCart) {
+      const response = await fetch(`${API_URL}/api/services/${test.id}/branches`);
+      const data = await response.json();
+      
+      data.data?.forEach(branch => {
+        if (!branchAvailability[branch.id]) {
+          branchAvailability[branch.id] = {
+            branch,
+            availableTests: []
+          };
+        }
+        branchAvailability[branch.id].availableTests.push(test.id);
+      });
+    }
+    
+    // Filter branches that have ALL tests
+    const validBranches = Object.values(branchAvailability)
+      .filter(b => b.availableTests.length === testCart.length)
+      .map(b => b.branch);
+    
+    if (validBranches.length === 0) {
+      alert('Không tìm thấy chi nhánh nào cung cấp tất cả các xét nghiệm đã chọn');
+      setLoading(false);
+      return;
+    }
+    
+    setBranches(validBranches);
+    setShowBranchModal(true);
+  } catch (error) {
+    alert('Lỗi tải chi nhánh: ' + error.message);
+  }
+  setLoading(false);
+};
   
   // Create a virtual service object for cart
   const cartService = {
@@ -204,6 +278,14 @@ const handleBookCart = async () => {
   setLoading(false);
 };
 
+const loadMorePackages = () => {
+  setDisplayedPackages(prev => prev + 10);
+};
+
+const loadMoreTests = () => {
+  setDisplayedTests(prev => prev + 10);
+};
+
 // Search services (MODIFY THIS EXISTING FUNCTION)
 const handleSearch = async () => {
   if (!searchQuery.trim()) return;
@@ -233,6 +315,9 @@ const handleSearch = async () => {
     
     setPackages(pkgs);
     setIndividualTests(tests);
+    // ADD THESE LINES:
+    setDisplayedPackages(10);
+    setDisplayedTests(10);
   } catch (error) {
     alert('Lỗi tìm kiếm: ' + error.message);
   }
@@ -263,20 +348,35 @@ const handleSearch = async () => {
     }
   };
 
-  // Select service and load branches
-  const handleSelectService = async (service) => {
-    setSelectedService(service);
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_URL}/api/services/${service.id}/branches`);
-      const data = await response.json();
-      setBranches(data.data || []);
-      setShowBranchModal(true);
-    } catch (error) {
-      alert('Lỗi tải chi nhánh: ' + error.message);
-    }
-    setLoading(false);
-  };
+// Select service and load branches
+const handleSelectService = async (service) => {
+  // Check if switching from tests to package
+  if (bookingMode === 'tests' && testCart.length > 0) {
+    const confirmed = window.confirm(
+      `Bạn đang có ${testCart.length} xét nghiệm trong giỏ. Chọn gói này sẽ xóa giỏ xét nghiệm. Tiếp tục?`
+    );
+    if (!confirmed) return;
+    
+    // Clear cart
+    setTestCart([]);
+    setShowCart(false);
+  }
+
+  setSelectedService(service);
+  setBookingMode('package');
+  setSelectedPackageForBooking(service);
+  setLoading(true);
+  
+  try {
+    const response = await fetch(`${API_URL}/api/services/${service.id}/branches`);
+    const data = await response.json();
+    setBranches(data.data || []);
+    setShowBranchModal(true);
+  } catch (error) {
+    alert('Lỗi tải chi nhánh: ' + error.message);
+  }
+  setLoading(false);
+};
 
   // Filter branches
   const filteredBranches = branches.filter(branch => {
@@ -331,30 +431,35 @@ const handleSearch = async () => {
   };
 
   // Reset to home
-  const handleGoHome = () => {
-    setCurrentView('search');
-    setSearchQuery('');
-    setPackages([]);
-    setIndividualTests([]);
-    setSelectedService(null);
-    setSelectedBranch(null);
-    setBookingForm({
-      patient_name: '',
-      patient_phone: '',
-      patient_email: '',
-      appointment_date: '',
-      appointment_time_slot: 'morning',
-      patient_notes: ''
-    });
-    setBookingResult(null);
-    setExpandedPackage(null);
-  };
+const handleGoHome = () => {
+  setCurrentView('search');
+  setSearchQuery('');
+  setPackages([]);
+  setIndividualTests([]);
+  setSelectedService(null);
+  setSelectedBranch(null);
+  setBookingForm({
+    patient_name: '',
+    patient_phone: '',
+    patient_email: '',
+    appointment_date: '',
+    appointment_time_slot: 'morning',
+    patient_notes: ''
+  });
+  setBookingResult(null);
+  setExpandedPackage(null);
+  setShowIndividualTests(false);
+  setTestCart([]);  // ADD THIS
+  setShowCart(false);  // ADD THIS
+  setBookingMode(null);  // ADD THIS
+  setSelectedPackageForBooking(null);  // ADD THIS
+};
 
   return (
     <div className="App">
       <header className="header">
-        <h1>Hệ thống Đặt lịch Y tế</h1>
-        <div className="header-subtitle">HelloHealth Booking System</div>
+        <h1>Đặt lịch</h1>
+        <div className="header-subtitle">Hello Health Group</div>
       </header>
 
       {/* SEARCH VIEW */}
@@ -480,7 +585,16 @@ const handleSearch = async () => {
                 )}
               </div>
             ))}
-
+            {packages.length > displayedPackages && (
+      <div className="load-more-section">
+        <button className="btn-load-more" onClick={loadMorePackages}>
+          Xem thêm {Math.min(10, packages.length - displayedPackages)} gói
+        </button>
+        <div className="results-count">
+          Đang hiển thị {displayedPackages} / {packages.length} gói
+        </div>
+      </div>
+    )}
             {/* Show More button */}
             {packages.length > 3 && (
               <div className="show-more-section">
@@ -497,6 +611,7 @@ const handleSearch = async () => {
             )}
           </div>
         </div>
+        
       )}
 
       {/* TESTS TAB */}
@@ -553,6 +668,18 @@ const handleSearch = async () => {
               </div>
             ))}
           </div>
+
+          {/* Load More Button */}
+    {individualTests.length > displayedTests && (
+      <div className="load-more-section">
+        <button className="btn-load-more" onClick={loadMoreTests}>
+          Xem thêm {Math.min(10, individualTests.length - displayedTests)} xét nghiệm
+        </button>
+        <div className="results-count">
+          Đang hiển thị {displayedTests} / {individualTests.length} xét nghiệm
+        </div>
+      </div>
+    )}
         </div>
       )}
 
