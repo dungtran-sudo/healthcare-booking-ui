@@ -890,86 +890,83 @@ const handleSearch = async () => {
       )}
 
       {/* NEW: FLOATING CART */}
-      {testCart.length > 0 && (
-                <>
-
-        {/* Backdrop for mobile */}
+{/* FLOATING CART WITH MOBILE FAB */}
+{testCart.length > 0 && (
+  <>
+    {/* Backdrop - only show when cart is OPEN on mobile */}
     {showCart && (
-
       <div 
         className="cart-backdrop"
         onClick={() => setShowCart(false)}
       />
     )}
 
-    {/* Mobile FAB - shows when cart is closed */}
-    {!showCart && (
-      <button
-        className="cart-fab-mobile"
-        onClick={() => setShowCart(true)}
-      >
-        <span className="cart-fab-icon">🛒</span>
-        <span className="cart-fab-badge">{testCart.length}</span>
-      </button>
-    )}
-        <div className="floating-cart"
-         
-        >
-          <div className="cart-header" onClick={() => setShowCart(!showCart)}>
-            <div className="cart-header-left">
-              <span className="cart-icon">🛒</span>
-              <span className="cart-title">Giỏ xét nghiệm ({testCart.length})</span>
-            </div>
-            <div className="cart-header-right">
-              <span className="cart-total">{cartTotal.toLocaleString('vi-VN')} đ</span>
-              <span className="cart-toggle">{showCart ? '▼' : '▲'}</span>
+    {/* Mobile FAB - only show when cart is CLOSED */}
+    <button
+      className="cart-fab-mobile"
+      onClick={() => setShowCart(true)}
+      style={{ display: showCart ? 'none' : 'flex' }}
+    >
+      <span className="cart-fab-icon">🛒</span>
+      <span className="cart-fab-badge">{testCart.length}</span>
+    </button>
+
+    {/* Main cart */}
+    <div className={`floating-cart ${showCart ? 'cart-open' : ''}`}>
+      <div className="cart-header" onClick={() => setShowCart(!showCart)}>
+        <div className="cart-header-left">
+          <span className="cart-icon">🛒</span>
+          <span className="cart-title">Giỏ xét nghiệm ({testCart.length})</span>
+        </div>
+        <div className="cart-header-right">
+          <span className="cart-total">{cartTotal.toLocaleString('vi-VN')} đ</span>
+          <span className="cart-toggle">{showCart ? '▼' : '▲'}</span>
+        </div>
+      </div>
+      
+      {showCart && (
+        <div className="cart-body">
+          <div className="cart-items">
+            {testCart.map((test, idx) => (
+              <div key={test.id} className="cart-item">
+                <span className="cart-item-number">{idx + 1}.</span>
+                <div className="cart-item-details">
+                  <div className="cart-item-name">{test.provider_service_name_vn}</div>
+                  <div className="cart-item-price">
+                    {parseFloat(test.discounted_price).toLocaleString('vi-VN')} đ
+                  </div>
+                </div>
+                <button 
+                  className="cart-item-remove"
+                  onClick={() => removeFromCart(test.id)}
+                  title="Xóa khỏi giỏ"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+          
+          <div className="cart-summary">
+            <div className="cart-summary-row">
+              <span>Tổng cộng:</span>
+              <span className="cart-summary-total">{cartTotal.toLocaleString('vi-VN')} đ</span>
             </div>
           </div>
           
-          {showCart && (
-            <div className="cart-body">
-              <div className="cart-items">
-                {testCart.map((test, idx) => (
-                  <div key={test.id} className="cart-item">
-                    <span className="cart-item-number">{idx + 1}.</span>
-                    <div className="cart-item-details">
-                      <div className="cart-item-name">{test.provider_service_name_vn}</div>
-                      <div className="cart-item-price">
-                        {parseFloat(test.discounted_price).toLocaleString('vi-VN')} đ
-                      </div>
-                    </div>
-                    <button 
-                      className="cart-item-remove"
-                      onClick={() => removeFromCart(test.id)}
-                      title="Xóa khỏi giỏ"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-              
-              <div className="cart-summary">
-                <div className="cart-summary-row">
-                  <span>Tổng cộng:</span>
-                  <span className="cart-summary-total">{cartTotal.toLocaleString('vi-VN')} đ</span>
-                </div>
-              </div>
-              
-              <div className="cart-actions">
-                <button className="btn-secondary btn-cart-clear" onClick={clearCart}>
-                  Xóa tất cả
-                </button>
-                <button className="btn-primary btn-cart-book" onClick={handleBookCart}>
-                  Chọn chi nhánh
-                </button>
-              </div>
-            </div>
-          )}
+          <div className="cart-actions">
+            <button className="btn-secondary btn-cart-clear" onClick={clearCart}>
+              Xóa tất cả
+            </button>
+            <button className="btn-primary btn-cart-book" onClick={handleBookCart}>
+              Chọn chi nhánh
+            </button>
+          </div>
         </div>
-            </>
-
       )}
+    </div>
+  </>
+)}
     </div>
   );
 }
