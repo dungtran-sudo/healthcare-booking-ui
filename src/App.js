@@ -4,6 +4,7 @@ import './App.css';
 const API_URL = process.env.REACT_APP_API_URL;
 
 function App() {
+  // State declarations
   const [searchQuery, setSearchQuery] = useState('');
   const [packages, setPackages] = useState([]);
   const [individualTests, setIndividualTests] = useState([]);
@@ -16,7 +17,7 @@ function App() {
   const [selectedDistrict, setSelectedDistrict] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [loading, setLoading] = useState(false);
-  const [currentView, setCurrentView] = useState('search'); // 'search', 'booking', 'confirmation'
+  const [currentView, setCurrentView] = useState('search');
   const [bookingForm, setBookingForm] = useState({
     patient_name: '',
     patient_phone: '',
@@ -27,307 +28,227 @@ function App() {
   });
   const [bookingResult, setBookingResult] = useState(null);
   const [packageComponents, setPackageComponents] = useState({});
-  const [showAllPackages, setShowAllPackages] = useState(false); 
   const [testCart, setTestCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
   const [displayedPackages, setDisplayedPackages] = useState(10);
   const [displayedTests, setDisplayedTests] = useState(10);
   const [selectedPackageForBooking, setSelectedPackageForBooking] = useState(null);
-  const [bookingMode, setBookingMode] = useState(null); // 'package' or 'tests'
-  const [activeTab, setActiveTab] = useState('packages'); // ADD THIS
+  const [bookingMode, setBookingMode] = useState(null);
+  const [activeTab, setActiveTab] = useState('packages');
 
-
-
-
-// Helper to remove accents
-const removeAccents = (str) => {
-  return str
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
-};
-
-// NEW: Add this function AFTER removeAccents
-// Calculate relevance score
-const calculateRelevance = (service, searchQuery) => {
-  const query = removeAccents(searchQuery).trim();
-  const name = removeAccents(service.provider_service_name_vn);
-  const description = removeAccents(service.short_description || '');
-  const queryWords = query.split(/\s+/).filter(w => w.length > 2);
-  
-  let score = 0;
-  
-  // Check if ALL query words are present (required for relevance)
-  const allWordsInName = queryWords.every(word => name.includes(word));
-  const allWordsInDescription = queryWords.every(word => description.includes(word));
-  
-  // If search words don't match at all, score should be very low
-  if (!allWordsInName && !allWordsInDescription) {
-    // Check if at least SOME words match
-    const someWordsMatch = queryWords.some(word => name.includes(word) || description.includes(word));
-    if (!someWordsMatch) {
-      return 0; // No match at all
-    }
-    // Partial match - very low score
-    return 5;
-  }
-  
-  // Exact match in name (highest priority)
-  if (name === query) {
-    score += 100;
-  }
-  
-  // Name starts with query
-  else if (name.startsWith(query)) {
-    score += 80;
-  }
-  
-  // All words appear together in name (phrase match)
-  else if (name.includes(query)) {
-    score += 60;
-  }
-  
-  // All individual words in name (scattered)
-  else if (allWordsInName) {
-    score += 40;
-    // Bonus if words appear close together
-    const firstWordIndex = name.indexOf(queryWords[0]);
-    const lastWordIndex = name.indexOf(queryWords[queryWords.length - 1]);
-    const distance = lastWordIndex - firstWordIndex;
-    if (distance < 20) score += 10; // Words are close together
-  }
-  
-  // All words in description but not name
-  else if (allWordsInDescription) {
-    score += 20;
-  }
-  
-  // Boost for packages
-  if (service.service_type === 'package') {
-    score += 10;
-  }
-  
-  // Bonus for exact word boundaries (not substring matches)
-  queryWords.forEach(word => {
-    const wordBoundaryRegex = new RegExp(`\\b${word}\\b`);
-    if (wordBoundaryRegex.test(name)) {
-      score += 5;
-    }
-  });
-  
-  // Penalty for very long names (less specific)
-  if (name.length > 100) {
-    score -= 5;
-  }
-  
-  return score;
-};
-
-// NEW: Cart management functions
-const addToCart = (test) => {
-  // Check if switching from package to tests
-  if (bookingMode === 'package' && selectedPackageForBooking) {
-    const confirmed = window.confirm(
-      `Bạn đang chọn gói "${selectedPackageForBooking.provider_service_name_vn}". Thêm xét nghiệm lẻ sẽ hủy chọn gói. Tiếp tục?`
-    );
-    if (!confirmed) return;
-    
-    // Clear package selection
-    setSelectedPackageForBooking(null);
-  }
-
-  // Check duplicate
-  if (testCart.find(t => t.id === test.id)) {
-    alert('Xét nghiệm này đã có trong giỏ');
-    return;
-  }
-  
-  setTestCart([...testCart, test]);
-  setBookingMode('tests');
-  // Don't auto-open cart on mobile
-};
-
-const removeFromCart = (testId) => {
-  const newCart = testCart.filter(t => t.id !== testId);
-  setTestCart(newCart);
-  
-  if (newCart.length === 0) {
-    setShowCart(false);
-    setBookingMode(null);  // ADD THIS LINE
-  }
-};
-
-const clearCart = () => {
-  if (window.confirm('Xóa tất cả xét nghiệm trong giỏ?')) {
-    setTestCart([]);
-    setShowCart(false);
-    setBookingMode(null);  // ADD THIS LINE
-  }
-};
-
-const cartTotal = testCart.reduce((sum, test) => 
-  sum + (parseFloat(test.discounted_price) || 0), 0
-);
-
-const handleBookCart = async () => {
-  if (testCart.length === 0) {
-    alert('Giỏ xét nghiệm trống');
-    return;
-  }
-  
-  // Create a virtual service object for cart
-  const cartService = {
-    id: 'cart',
-    provider_service_name_vn: `Đặt lẻ ${testCart.length} xét nghiệm`,
-    discounted_price: cartTotal,
-    service_type: 'custom_bundle',
-    providers: testCart[0].providers,
-    cart_items: testCart
+  // Helper to remove accents
+  const removeAccents = (str) => {
+    return str
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
   };
-  
-  setSelectedService(cartService);
-  setBookingMode('tests');
-  setLoading(true);
-  
-  try {
-    // Get branches that offer ALL tests in cart
-    const branchAvailability = {};
+
+  // Calculate relevance score
+  const calculateRelevance = (service, searchQuery) => {
+    const query = removeAccents(searchQuery).trim();
+    const name = removeAccents(service.provider_service_name_vn);
+    const description = removeAccents(service.short_description || '');
+    const queryWords = query.split(/\s+/).filter(w => w.length > 2);
     
-    for (const test of testCart) {
-      const response = await fetch(`${API_URL}/api/services/${test.id}/branches`);
-      const data = await response.json();
-      
-      data.data?.forEach(branch => {
-        if (!branchAvailability[branch.id]) {
-          branchAvailability[branch.id] = {
-            branch,
-            availableTests: []
-          };
-        }
-        branchAvailability[branch.id].availableTests.push(test.id);
-      });
+    let score = 0;
+    
+    const allWordsInName = queryWords.every(word => name.includes(word));
+    const allWordsInDescription = queryWords.every(word => description.includes(word));
+    
+    if (!allWordsInName && !allWordsInDescription) {
+      const someWordsMatch = queryWords.some(word => name.includes(word) || description.includes(word));
+      if (!someWordsMatch) {
+        return 0;
+      }
+      return 5;
     }
     
-    // Filter branches that have ALL tests
-    const validBranches = Object.values(branchAvailability)
-      .filter(b => b.availableTests.length === testCart.length)
-      .map(b => b.branch);
+    if (name === query) {
+      score += 100;
+    } else if (name.startsWith(query)) {
+      score += 80;
+    } else if (name.includes(query)) {
+      score += 60;
+    } else if (allWordsInName) {
+      score += 40;
+      const firstWordIndex = name.indexOf(queryWords[0]);
+      const lastWordIndex = name.indexOf(queryWords[queryWords.length - 1]);
+      const distance = lastWordIndex - firstWordIndex;
+      if (distance < 20) score += 10;
+    } else if (allWordsInDescription) {
+      score += 20;
+    }
     
-    if (validBranches.length === 0) {
-      alert('Không tìm thấy chi nhánh nào cung cấp tất cả các xét nghiệm đã chọn');
-      setLoading(false);
+    if (service.service_type === 'package') {
+      score += 10;
+    }
+    
+    queryWords.forEach(word => {
+      const wordBoundaryRegex = new RegExp(`\\b${word}\\b`);
+      if (wordBoundaryRegex.test(name)) {
+        score += 5;
+      }
+    });
+    
+    if (name.length > 100) {
+      score -= 5;
+    }
+    
+    return score;
+  };
+
+  // Cart management functions
+  const addToCart = (test) => {
+    if (bookingMode === 'package' && selectedPackageForBooking) {
+      const confirmed = window.confirm(
+        `Bạn đang chọn gói "${selectedPackageForBooking.provider_service_name_vn}". Thêm xét nghiệm lẻ sẽ hủy chọn gói. Tiếp tục?`
+      );
+      if (!confirmed) return;
+      
+      setSelectedPackageForBooking(null);
+    }
+
+    if (testCart.find(t => t.id === test.id)) {
+      alert('Xét nghiệm này đã có trong giỏ');
       return;
     }
     
-    setBranches(validBranches);
-    setShowBranchModal(true);
-  } catch (error) {
-    alert('Lỗi tải chi nhánh: ' + error.message);
-  }
-  setLoading(false);
-};
-  
-  // Create a virtual service object for cart
-  const cartService = {
-    id: 'cart',
-    provider_service_name_vn: `${testCart.length} xét nghiệm đơn lẻ`,
-    discounted_price: cartTotal,
-    service_type: 'custom_bundle',
-    providers: testCart[0].providers,
-    cart_items: testCart
+    setTestCart([...testCart, test]);
+    setBookingMode('tests');
   };
-  
-  setSelectedService(cartService);
-  setLoading(true);
-  
-  try {
-    // Get branches that offer ALL tests in cart
-    const branchAvailability = {};
+
+  const removeFromCart = (testId) => {
+    const newCart = testCart.filter(t => t.id !== testId);
+    setTestCart(newCart);
     
-    for (const test of testCart) {
-      const response = await fetch(`${API_URL}/api/services/${test.id}/branches`);
-      const data = await response.json();
-      
-      data.data?.forEach(branch => {
-        if (!branchAvailability[branch.id]) {
-          branchAvailability[branch.id] = {
-            branch,
-            availableTests: []
-          };
-        }
-        branchAvailability[branch.id].availableTests.push(test.id);
-      });
+    if (newCart.length === 0) {
+      setShowCart(false);
+      setBookingMode(null);
     }
-    
-    // Filter branches that have ALL tests
-    const validBranches = Object.values(branchAvailability)
-      .filter(b => b.availableTests.length === testCart.length)
-      .map(b => b.branch);
-    
-    if (validBranches.length === 0) {
-      alert('Không tìm thấy chi nhánh nào cung cấp tất cả các xét nghiệm đã chọn');
-      setLoading(false);
+  };
+
+  const clearCart = () => {
+    if (window.confirm('Xóa tất cả xét nghiệm trong giỏ?')) {
+      setTestCart([]);
+      setShowCart(false);
+      setBookingMode(null);
+    }
+  };
+
+  const cartTotal = testCart.reduce((sum, test) => 
+    sum + (parseFloat(test.discounted_price) || 0), 0
+  );
+
+  const handleBookCart = async () => {
+    if (testCart.length === 0) {
+      alert('Giỏ xét nghiệm trống');
       return;
     }
     
-    setBranches(validBranches);
-    setShowBranchModal(true);
-  } catch (error) {
-    alert('Lỗi tải chi nhánh: ' + error.message);
-  }
-  setLoading(false);
-};
+    const cartService = {
+      id: 'cart',
+      provider_service_name_vn: `Đặt lẻ ${testCart.length} xét nghiệm`,
+      discounted_price: cartTotal,
+      service_type: 'custom_bundle',
+      providers: testCart[0].providers,
+      cart_items: testCart
+    };
+    
+    setSelectedService(cartService);
+    setBookingMode('tests');
+    setLoading(true);
+    
+    try {
+      const branchAvailability = {};
+      
+      for (const test of testCart) {
+        const response = await fetch(`${API_URL}/api/services/${test.id}/branches`);
+        const data = await response.json();
+        
+        data.data?.forEach(branch => {
+          if (!branchAvailability[branch.id]) {
+            branchAvailability[branch.id] = {
+              branch,
+              availableTests: []
+            };
+          }
+          branchAvailability[branch.id].availableTests.push(test.id);
+        });
+      }
+      
+      const validBranches = Object.values(branchAvailability)
+        .filter(b => b.availableTests.length === testCart.length)
+        .map(b => b.branch);
+      
+      if (validBranches.length === 0) {
+        alert('Không tìm thấy chi nhánh nào cung cấp tất cả các xét nghiệm đã chọn');
+        setLoading(false);
+        return;
+      }
+      
+      setBranches(validBranches);
+      setShowBranchModal(true);
+    } catch (error) {
+      alert('Lỗi tải chi nhánh: ' + error.message);
+    }
+    setLoading(false);
+  };
 
-const loadMorePackages = () => {
-  setDisplayedPackages(prev => prev + 10);
-};
+  const loadMorePackages = () => {
+    setDisplayedPackages(prev => prev + 10);
+  };
 
-const loadMoreTests = () => {
-  setDisplayedTests(prev => prev + 10);
-};
+  const loadMoreTests = () => {
+    setDisplayedTests(prev => prev + 10);
+  };
 
-// Search services (MODIFY THIS EXISTING FUNCTION)
-const handleSearch = async () => {
-  if (!searchQuery.trim()) return;
-  
-  setLoading(true);
-  try {
-    const normalizedQuery = removeAccents(searchQuery);
-    const response = await fetch(
-      `${API_URL}/api/search/services?q=${encodeURIComponent(normalizedQuery)}`
-    );
-    const data = await response.json();
+  // Search services
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
     
-    // Separate packages and individual tests
-    let pkgs = data.data.filter(s => s.service_type === 'package');
-    let tests = data.data.filter(s => s.service_type === 'individual_test');
-    
-    // NEW: Sort by relevance
-    pkgs = pkgs.map(pkg => ({
-      ...pkg,
-      relevanceScore: calculateRelevance(pkg, searchQuery)
-    })).sort((a, b) => b.relevanceScore - a.relevanceScore);
-    
-    tests = tests.map(test => ({
-      ...test,
-      relevanceScore: calculateRelevance(test, searchQuery)
-    })).sort((a, b) => b.relevanceScore - a.relevanceScore);
-    
-    setPackages(pkgs);
-    setIndividualTests(tests);
-    // ADD THESE LINES:
-    setDisplayedPackages(10);
-    setDisplayedTests(10);
-  } catch (error) {
-    alert('Lỗi tìm kiếm: ' + error.message);
-  }
-  setLoading(false);
-};
+    setLoading(true);
+    try {
+      const normalizedQuery = removeAccents(searchQuery);
+      const response = await fetch(
+        `${API_URL}/api/search/services?q=${encodeURIComponent(normalizedQuery)}`
+      );
+      const data = await response.json();
+      
+      // Filter packages and tests
+      let pkgs = data.data.filter(s => 
+        s.service_type === 'package' && 
+        s.parent_service_id === null
+      );
+      
+      let tests = data.data.filter(s => 
+        s.service_type === 'atomic'
+      );
+      
+      // Sort by relevance
+      pkgs = pkgs.map(pkg => ({
+        ...pkg,
+        relevanceScore: calculateRelevance(pkg, searchQuery)
+      })).sort((a, b) => b.relevanceScore - a.relevanceScore);
+      
+      tests = tests.map(test => ({
+        ...test,
+        relevanceScore: calculateRelevance(test, searchQuery)
+      })).sort((a, b) => b.relevanceScore - a.relevanceScore);
+      
+      setPackages(pkgs);
+      setIndividualTests(tests);
+      setDisplayedPackages(10);
+      setDisplayedTests(10);
+    } catch (error) {
+      alert('Lỗi tìm kiếm: ' + error.message);
+    }
+    setLoading(false);
+  };
 
   // Get package components
   const loadPackageComponents = async (packageId) => {
     if (packageComponents[packageId]) {
-      // Already loaded
       setExpandedPackage(expandedPackage === packageId ? null : packageId);
       return;
     }
@@ -348,35 +269,33 @@ const handleSearch = async () => {
     }
   };
 
-// Select service and load branches
-const handleSelectService = async (service) => {
-  // Check if switching from tests to package
-  if (bookingMode === 'tests' && testCart.length > 0) {
-    const confirmed = window.confirm(
-      `Bạn đang có ${testCart.length} xét nghiệm trong giỏ. Chọn gói này sẽ xóa giỏ xét nghiệm. Tiếp tục?`
-    );
-    if (!confirmed) return;
-    
-    // Clear cart
-    setTestCart([]);
-    setShowCart(false);
-  }
+  // Select service and load branches
+  const handleSelectService = async (service) => {
+    if (bookingMode === 'tests' && testCart.length > 0) {
+      const confirmed = window.confirm(
+        `Bạn đang có ${testCart.length} xét nghiệm trong giỏ. Chọn gói này sẽ xóa giỏ xét nghiệm. Tiếp tục?`
+      );
+      if (!confirmed) return;
+      
+      setTestCart([]);
+      setShowCart(false);
+    }
 
-  setSelectedService(service);
-  setBookingMode('package');
-  setSelectedPackageForBooking(service);
-  setLoading(true);
-  
-  try {
-    const response = await fetch(`${API_URL}/api/services/${service.id}/branches`);
-    const data = await response.json();
-    setBranches(data.data || []);
-    setShowBranchModal(true);
-  } catch (error) {
-    alert('Lỗi tải chi nhánh: ' + error.message);
-  }
-  setLoading(false);
-};
+    setSelectedService(service);
+    setBookingMode('package');
+    setSelectedPackageForBooking(service);
+    setLoading(true);
+    
+    try {
+      const response = await fetch(`${API_URL}/api/services/${service.id}/branches`);
+      const data = await response.json();
+      setBranches(data.data || []);
+      setShowBranchModal(true);
+    } catch (error) {
+      alert('Lỗi tải chi nhánh: ' + error.message);
+    }
+    setLoading(false);
+  };
 
   // Filter branches
   const filteredBranches = branches.filter(branch => {
@@ -405,15 +324,23 @@ const handleSelectService = async (service) => {
     
     setLoading(true);
     try {
+      const bookingData = {
+        branch_id: selectedBranch.id,
+        ...bookingForm,
+        created_by_email: 'cs@hellobacsi.com'
+      };
+
+      // Add either provider_service_id or cart_items
+      if (selectedService.service_type === 'custom_bundle') {
+        bookingData.cart_items = selectedService.cart_items;
+      } else {
+        bookingData.provider_service_id = selectedService.id;
+      }
+
       const response = await fetch(`${API_URL}/api/bookings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          provider_service_id: selectedService.id,
-          branch_id: selectedBranch.id,
-          ...bookingForm,
-          created_by_email: 'cs@hellobacsi.com'
-        })
+        body: JSON.stringify(bookingData)
       });
       
       const data = await response.json();
@@ -431,29 +358,28 @@ const handleSelectService = async (service) => {
   };
 
   // Reset to home
-const handleGoHome = () => {
-  setCurrentView('search');
-  setSearchQuery('');
-  setPackages([]);
-  setIndividualTests([]);
-  setSelectedService(null);
-  setSelectedBranch(null);
-  setBookingForm({
-    patient_name: '',
-    patient_phone: '',
-    patient_email: '',
-    appointment_date: '',
-    appointment_time_slot: 'morning',
-    patient_notes: ''
-  });
-  setBookingResult(null);
-  setExpandedPackage(null);
-  setShowIndividualTests(false);
-  setTestCart([]);  // ADD THIS
-  setShowCart(false);  // ADD THIS
-  setBookingMode(null);  // ADD THIS
-  setSelectedPackageForBooking(null);  // ADD THIS
-};
+  const handleGoHome = () => {
+    setCurrentView('search');
+    setSearchQuery('');
+    setPackages([]);
+    setIndividualTests([]);
+    setSelectedService(null);
+    setSelectedBranch(null);
+    setBookingForm({
+      patient_name: '',
+      patient_phone: '',
+      patient_email: '',
+      appointment_date: '',
+      appointment_time_slot: 'morning',
+      patient_notes: ''
+    });
+    setBookingResult(null);
+    setExpandedPackage(null);
+    setTestCart([]);
+    setShowCart(false);
+    setBookingMode(null);
+    setSelectedPackageForBooking(null);
+  };
 
   return (
     <div className="App">
@@ -480,223 +406,211 @@ const handleGoHome = () => {
               </button>
             </div>
 
-{/* SEARCH RESULTS WITH TABS */}
-{(packages.length > 0 || individualTests.length > 0) && (
-  <div className="results-section">
-    {/* Tabs */}
-    <div className="results-tabs">
-      <button
-        className={`tab-button ${activeTab === 'packages' ? 'active' : ''}`}
-        onClick={() => setActiveTab('packages')}
-      >
-        <span className="tab-icon">Gói</span>
-        <span className="tab-count">({packages.length})</span>
-      </button>
-      <button
-        className={`tab-button ${activeTab === 'tests' ? 'active' : ''}`}
-        onClick={() => setActiveTab('tests')}
-      >
-        <span className="tab-icon">Dịch vụ lẻ</span>
-        <span className="tab-count">({individualTests.length})</span>
-      </button>
-    </div>
-
-    {/* Tab Content */}
-    <div className="tab-content">
-      {/* PACKAGES TAB */}
-      {activeTab === 'packages' && packages.length > 0 && (
-        <div className="packages-tab">
-          <div className="results-list">
-            {packages.slice(0, showAllPackages ? packages.length : 3).map((pkg, index) => (
-              <div key={pkg.id} className="result-card package-card">
-                {index === 0 && (
-                  <div className="recommended-badge">KHUYẾN NGHỊ</div>
-                )}
-                
-                <div className="result-header">
-                  <div className="result-title">{pkg.provider_service_name_vn}</div>
-                  <div className="result-meta">
-                    <span className="provider-name">{pkg.providers?.brand_name_vn}</span>
-                    <span className="price">{pkg.discounted_price?.toLocaleString('vi-VN')} đ</span>
-                  </div>
-                </div>
-
-                {/* Suitable For Section */}
-                {pkg.suitable_for && pkg.suitable_for.length > 0 && (
-                  <div className="suitable-for-box">
-                    <div className="suitable-for-header">PHÙ HỢP VỚI:</div>
-                    <div className="suitable-for-list">
-                      {pkg.suitable_for.map((item, i) => (
-                        <div key={i} className="suitable-for-item">{item}</div>
-                      ))}
-                    </div>
-                    {pkg.target_age_group && (
-                      <div className="age-group">Độ tuổi: {pkg.target_age_group}</div>
-                    )}
-                  </div>
-                )}
-
-                {/* Key Benefits */}
-                {pkg.key_benefits && pkg.key_benefits.length > 0 && (
-                  <div className="benefits">
-                    {pkg.key_benefits.slice(0, 3).map((benefit, i) => (
-                      <div key={i} className="benefit-item">{benefit}</div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="result-actions">
-                  <button 
-                    className="btn-secondary"
-                    onClick={() => loadPackageComponents(pkg.id)}
+            {/* SEARCH RESULTS WITH TABS */}
+            {(packages.length > 0 || individualTests.length > 0) && (
+              <div className="results-section">
+                {/* Tabs */}
+                <div className="results-tabs">
+                  <button
+                    className={`tab-button ${activeTab === 'packages' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('packages')}
                   >
-                    {expandedPackage === pkg.id ? 'Ẩn chi tiết' : 'Xem gói bao gồm'}
+                    <span className="tab-label">Gói</span>
+                    <span className="tab-count">{packages.length}</span>
                   </button>
-                  <button 
-                    className="btn-primary btn-choose-package"
-                    onClick={() => handleSelectService(pkg)}
+                  <button
+                    className={`tab-button ${activeTab === 'tests' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('tests')}
                   >
-                    CHỌN GÓI NÀY
+                    <span className="tab-label">Dịch vụ lẻ</span>
+                    <span className="tab-count">{individualTests.length}</span>
                   </button>
                 </div>
 
-                {/* Package components expansion */}
-                {expandedPackage === pkg.id && packageComponents[pkg.id] && (
-                  <div className="package-components">
-                    <div className="components-header">
-                      Gói bao gồm {packageComponents[pkg.id].length} xét nghiệm:
-                    </div>
-                    <div className="components-list">
-                      {packageComponents[pkg.id].map((comp, idx) => (
-                        <div key={idx} className="component-item">
-                          <span className="component-number">{idx + 1}.</span>
-                          <span className="component-name">
-                            {comp.component?.display_name || comp.component?.provider_service_name_vn}
-                          </span>
-                          {(comp.component?.display_price || comp.component?.discounted_price) && (
-                            <span className="component-price">
-                              {(comp.component?.display_price || comp.component?.discounted_price)?.toLocaleString('vi-VN')} đ
-                            </span>
-                          )}
+                {/* Tab Content */}
+                <div className="tab-content">
+                  {/* PACKAGES TAB */}
+                  {activeTab === 'packages' && packages.length > 0 && (
+                    <div className="packages-tab">
+                      <div className="results-list">
+                        {packages.slice(0, displayedPackages).map((pkg, index) => (
+                          <div key={pkg.id} className="result-card package-card">
+                            {index === 0 && (
+                              <div className="recommended-badge">KHUYẾN NGHỊ</div>
+                            )}
+                            
+                            <div className="result-header">
+                              <div className="result-title">{pkg.provider_service_name_vn}</div>
+                              <div className="result-meta">
+                                <span className="provider-name">{pkg.providers?.brand_name_vn}</span>
+                                <span className="price">{pkg.discounted_price?.toLocaleString('vi-VN')} đ</span>
+                              </div>
+                            </div>
+
+                            {pkg.suitable_for && pkg.suitable_for.length > 0 && (
+                              <div className="suitable-for-box">
+                                <div className="suitable-for-header">PHÙ HỢP VỚI:</div>
+                                <div className="suitable-for-list">
+                                  {pkg.suitable_for.map((item, i) => (
+                                    <div key={i} className="suitable-for-item">{item}</div>
+                                  ))}
+                                </div>
+                                {pkg.target_age_group && (
+                                  <div className="age-group">Độ tuổi: {pkg.target_age_group}</div>
+                                )}
+                              </div>
+                            )}
+
+                            {pkg.key_benefits && pkg.key_benefits.length > 0 && (
+                              <div className="benefits">
+                                {pkg.key_benefits.slice(0, 3).map((benefit, i) => (
+                                  <div key={i} className="benefit-item">{benefit}</div>
+                                ))}
+                              </div>
+                            )}
+
+                            <div className="result-actions">
+                              <button 
+                                className="btn-secondary"
+                                onClick={() => loadPackageComponents(pkg.id)}
+                              >
+                                {expandedPackage === pkg.id ? 'Ẩn chi tiết' : 'Xem gói bao gồm'}
+                              </button>
+                              <button 
+                                className="btn-primary btn-choose-package"
+                                onClick={() => handleSelectService(pkg)}
+                              >
+                                CHỌN GÓI NÀY
+                              </button>
+                            </div>
+
+                            {expandedPackage === pkg.id && packageComponents[pkg.id] && (
+                              <div className="package-components">
+                                <div className="components-header">
+                                  Gói bao gồm {packageComponents[pkg.id].length} xét nghiệm:
+                                </div>
+                                <div className="components-list">
+                                  {packageComponents[pkg.id].map((comp, idx) => (
+                                    <div key={idx} className="component-item">
+                                      <span className="component-number">{idx + 1}.</span>
+                                      <span className="component-name">
+                                        {comp.component?.display_name || comp.component?.provider_service_name_vn}
+                                      </span>
+                                      {(comp.component?.display_price || comp.component?.discounted_price) && (
+                                        <span className="component-price">
+                                          {(comp.component?.display_price || comp.component?.discounted_price)?.toLocaleString('vi-VN')} đ
+                                        </span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {packages.length > displayedPackages && (
+                        <div className="load-more-section">
+                          <button className="btn-load-more" onClick={loadMorePackages}>
+                            Xem thêm {Math.min(10, packages.length - displayedPackages)} gói
+                          </button>
+                          <div className="results-count">
+                            Hiển thị {displayedPackages} / {packages.length}
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-            {packages.length > displayedPackages && (
-      <div className="load-more-section">
-        <button className="btn-load-more" onClick={loadMorePackages}>
-          Xem thêm {Math.min(10, packages.length - displayedPackages)} gói
-        </button>
-        <div className="results-count">
-          Đang hiển thị {displayedPackages} / {packages.length} gói
-        </div>
-      </div>
-    )}
-            {/* Show More button */}
-            {packages.length > 3 && (
-              <div className="show-more-section">
-                <button 
-                  className="btn-show-more"
-                  onClick={() => setShowAllPackages(!showAllPackages)}
-                >
-                  {showAllPackages 
-                    ? 'Thu gọn' 
-                    : `Xem thêm ${packages.length - 3} gói khác`
-                  }
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-        
-      )}
-
-      {/* TESTS TAB */}
-      {activeTab === 'tests' && individualTests.length > 0 && (
-        <div className="tests-tab">
-          <div className="warning-box">
-            ⚠️ Khuyến nghị đặt gói để tiết kiệm chi phí
-          </div>
-
-          <div className="results-list">
-            {individualTests.map(test => (
-              <div key={test.id} className="result-card test-card">
-                <div className="result-header">
-                  <div className="result-title">{test.provider_service_name_vn}</div>
-                  <div className="result-meta">
-                    <span className="provider-name">{test.providers?.brand_name_vn}</span>
-                    {test.discounted_price ? (
-                      <span className="price">{test.discounted_price?.toLocaleString('vi-VN')} đ</span>
-                    ) : (
-                      <span className="price-unavailable">Liên hệ</span>
-                    )}
-                  </div>
-                </div>
-
-                {test.short_description && (
-                  <div className="test-description">{test.short_description}</div>
-                )}
-
-                <div className="result-actions">
-                  {test.discounted_price ? (
-                    <>
-                      {testCart.find(t => t.id === test.id) ? (
-                        <button 
-                          className="btn-added"
-                          onClick={() => removeFromCart(test.id)}
-                        >
-                          ✓ Đã thêm
-                        </button>
-                      ) : (
-                        <button 
-                          className="btn-primary"
-                          onClick={() => addToCart(test)}
-                        >
-                          + Thêm vào giỏ
-                        </button>
                       )}
-                    </>
-                  ) : (
-                    <button className="btn-disabled" disabled>
-                      Không thể đặt trực tuyến
-                    </button>
+                    </div>
+                  )}
+
+                  {/* TESTS TAB */}
+                  {activeTab === 'tests' && individualTests.length > 0 && (
+                    <div className="tests-tab">
+                      <div className="warning-box">
+                        ⚠️ Khuyến nghị đặt gói để tiết kiệm chi phí
+                      </div>
+
+                      <div className="results-list">
+                        {individualTests.slice(0, displayedTests).map(test => (
+                          <div key={test.id} className="result-card test-card">
+                            <div className="result-header">
+                              <div className="result-title">{test.provider_service_name_vn}</div>
+                              <div className="result-meta">
+                                <span className="provider-name">{test.providers?.brand_name_vn}</span>
+                                {test.discounted_price ? (
+                                  <span className="price">{test.discounted_price?.toLocaleString('vi-VN')} đ</span>
+                                ) : (
+                                  <span className="price-unavailable">Liên hệ</span>
+                                )}
+                              </div>
+                            </div>
+
+                            {test.short_description && (
+                              <div className="test-description">{test.short_description}</div>
+                            )}
+
+                            <div className="result-actions">
+                              {test.discounted_price ? (
+                                <>
+                                  {testCart.find(t => t.id === test.id) ? (
+                                    <button 
+                                      className="btn-added"
+                                      onClick={() => removeFromCart(test.id)}
+                                    >
+                                      ✓ Đã thêm
+                                    </button>
+                                  ) : (
+                                    <button 
+                                      className="btn-primary"
+                                      onClick={() => addToCart(test)}
+                                    >
+                                      + Thêm vào giỏ
+                                    </button>
+                                  )}
+                                </>
+                              ) : (
+                                <button className="btn-disabled" disabled>
+                                  Không thể đặt trực tuyến
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {individualTests.length > displayedTests && (
+                        <div className="load-more-section">
+                          <button className="btn-load-more" onClick={loadMoreTests}>
+                            Xem thêm {Math.min(10, individualTests.length - displayedTests)} xét nghiệm
+                          </button>
+                          <div className="results-count">
+                            Hiển thị {displayedTests} / {individualTests.length}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Empty states */}
+                  {activeTab === 'packages' && packages.length === 0 && (
+                    <div className="no-results">
+                      Không tìm thấy gói dịch vụ phù hợp
+                    </div>
+                  )}
+                  {activeTab === 'tests' && individualTests.length === 0 && (
+                    <div className="no-results">
+                      Không tìm thấy xét nghiệm đơn lẻ phù hợp
+                    </div>
                   )}
                 </div>
               </div>
-            ))}
-          </div>
+            )}
 
-          {/* Load More Button */}
-    {individualTests.length > displayedTests && (
-      <div className="load-more-section">
-        <button className="btn-load-more" onClick={loadMoreTests}>
-          Xem thêm {Math.min(10, individualTests.length - displayedTests)} xét nghiệm
-        </button>
-        <div className="results-count">
-          Đang hiển thị {displayedTests} / {individualTests.length} xét nghiệm
-        </div>
-      </div>
-    )}
-        </div>
-      )}
-
-      {/* Empty state */}
-      {activeTab === 'packages' && packages.length === 0 && (
-        <div className="no-results">
-          Không tìm thấy gói dịch vụ phù hợp
-        </div>
-      )}
-      {activeTab === 'tests' && individualTests.length === 0 && (
-        <div className="no-results">
-          Không tìm thấy xét nghiệm đơn lẻ phù hợp
-        </div>
-      )}
-    </div>
-  </div>
-)}
+            {packages.length === 0 && individualTests.length === 0 && searchQuery && !loading && (
+              <div className="no-results">
+                Không tìm thấy dịch vụ phù hợp
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -854,42 +768,42 @@ const handleGoHome = () => {
                 </table>
               </div>
 
-<div className="detail-group">
-  <h3>Dịch vụ</h3>
-  <table>
-    <tbody>
-      {selectedService.service_type === 'custom_bundle' ? (
-        <>
-          <tr>
-            <td>Loại:</td>
-            <td><strong>Đặt lẻ nhiều xét nghiệm</strong></td>
-          </tr>
-          <tr>
-            <td>Xét nghiệm:</td>
-            <td>
-              {selectedService.cart_items.map((item, idx) => (
-                <div key={item.id}>
-                  {idx + 1}. {item.provider_service_name_vn}
-                </div>
-              ))}
-            </td>
-          </tr>
-        </>
-      ) : (
-        <>
-          <tr>
-            <td>Tên dịch vụ:</td>
-            <td><strong>{selectedService.provider_service_name_vn}</strong></td>
-          </tr>
-        </>
-      )}
-      <tr>
-        <td>Nhà cung cấp:</td>
-        <td>{selectedService.providers?.brand_name_vn}</td>
-      </tr>
-    </tbody>
-  </table>
-</div>
+              <div className="detail-group">
+                <h3>Dịch vụ</h3>
+                <table>
+                  <tbody>
+                    {selectedService.service_type === 'custom_bundle' ? (
+                      <>
+                        <tr>
+                          <td>Loại:</td>
+                          <td><strong>Đặt lẻ nhiều xét nghiệm</strong></td>
+                        </tr>
+                        <tr>
+                          <td>Xét nghiệm:</td>
+                          <td>
+                            {selectedService.cart_items.map((item, idx) => (
+                              <div key={item.id}>
+                                {idx + 1}. {item.provider_service_name_vn}
+                              </div>
+                            ))}
+                          </td>
+                        </tr>
+                      </>
+                    ) : (
+                      <>
+                        <tr>
+                          <td>Tên dịch vụ:</td>
+                          <td><strong>{selectedService.provider_service_name_vn}</strong></td>
+                        </tr>
+                      </>
+                    )}
+                    <tr>
+                      <td>Nhà cung cấp:</td>
+                      <td>{selectedService.providers?.brand_name_vn}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
 
               <div className="detail-group">
                 <h3>Chi nhánh</h3>
@@ -1035,84 +949,80 @@ const handleGoHome = () => {
         </div>
       )}
 
-      {/* NEW: FLOATING CART */}
-{/* FLOATING CART WITH MOBILE FAB */}
-{testCart.length > 0 && (
-  <>
-    {/* Backdrop - only show when cart is OPEN on mobile */}
-    {showCart && (
-      <div 
-        className="cart-backdrop"
-        onClick={() => setShowCart(false)}
-      />
-    )}
+      {/* FLOATING CART */}
+      {testCart.length > 0 && (
+        <>
+          {showCart && (
+            <div 
+              className="cart-backdrop"
+              onClick={() => setShowCart(false)}
+            />
+          )}
 
-    {/* Mobile FAB - only show when cart is CLOSED */}
-    <button
-      className="cart-fab-mobile"
-      onClick={() => setShowCart(true)}
-      style={{ display: showCart ? 'none' : 'flex' }}
-    >
-      <span className="cart-fab-icon">🛒</span>
-      <span className="cart-fab-badge">{testCart.length}</span>
-    </button>
+          <button
+            className="cart-fab-mobile"
+            onClick={() => setShowCart(true)}
+            style={{ display: showCart ? 'none' : 'flex' }}
+          >
+            <span className="cart-fab-icon">🛒</span>
+            <span className="cart-fab-badge">{testCart.length}</span>
+          </button>
 
-    {/* Main cart */}
-    <div className={`floating-cart ${showCart ? 'cart-open' : ''}`}>
-      <div className="cart-header" onClick={() => setShowCart(!showCart)}>
-        <div className="cart-header-left">
-          <span className="cart-icon">🛒</span>
-          <span className="cart-title">Giỏ xét nghiệm ({testCart.length})</span>
-        </div>
-        <div className="cart-header-right">
-          <span className="cart-total">{cartTotal.toLocaleString('vi-VN')} đ</span>
-          <span className="cart-toggle">{showCart ? '▼' : '▲'}</span>
-        </div>
-      </div>
-      
-      {showCart && (
-        <div className="cart-body">
-          <div className="cart-items">
-            {testCart.map((test, idx) => (
-              <div key={test.id} className="cart-item">
-                <span className="cart-item-number">{idx + 1}.</span>
-                <div className="cart-item-details">
-                  <div className="cart-item-name">{test.provider_service_name_vn}</div>
-                  <div className="cart-item-price">
-                    {parseFloat(test.discounted_price).toLocaleString('vi-VN')} đ
+          <div className={`floating-cart ${showCart ? 'cart-open' : ''}`}>
+            <div className="cart-header" onClick={() => setShowCart(!showCart)}>
+              <div className="cart-header-left">
+                <span className="cart-icon">🛒</span>
+                <span className="cart-title">Giỏ xét nghiệm ({testCart.length})</span>
+              </div>
+              <div className="cart-header-right">
+                <span className="cart-total">{cartTotal.toLocaleString('vi-VN')} đ</span>
+                <span className="cart-toggle">{showCart ? '▼' : '▲'}</span>
+              </div>
+            </div>
+            
+            {showCart && (
+              <div className="cart-body">
+                <div className="cart-items">
+                  {testCart.map((test, idx) => (
+                    <div key={test.id} className="cart-item">
+                      <span className="cart-item-number">{idx + 1}.</span>
+                      <div className="cart-item-details">
+                        <div className="cart-item-name">{test.provider_service_name_vn}</div>
+                        <div className="cart-item-price">
+                          {parseFloat(test.discounted_price).toLocaleString('vi-VN')} đ
+                        </div>
+                      </div>
+                      <button 
+                        className="cart-item-remove"
+                        onClick={() => removeFromCart(test.id)}
+                        title="Xóa khỏi giỏ"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="cart-summary">
+                  <div className="cart-summary-row">
+                    <span>Tổng cộng:</span>
+                    <span className="cart-summary-total">{cartTotal.toLocaleString('vi-VN')} đ</span>
                   </div>
                 </div>
-                <button 
-                  className="cart-item-remove"
-                  onClick={() => removeFromCart(test.id)}
-                  title="Xóa khỏi giỏ"
-                >
-                  ×
-                </button>
+                
+                <div className="cart-actions">
+                  <button className="btn-cart-clear" onClick={clearCart}>
+                    Xóa tất cả
+                  </button>
+                  <button className="btn-cart-book" onClick={handleBookCart}>
+                    Chọn chi nhánh
+                  </button>
+                </div>
               </div>
-            ))}
+            )}
           </div>
-          
-          <div className="cart-summary">
-            <div className="cart-summary-row">
-              <span>Tổng cộng:</span>
-              <span className="cart-summary-total">{cartTotal.toLocaleString('vi-VN')} đ</span>
-            </div>
-          </div>
-          
-          <div className="cart-actions">
-            <button className="btn-secondary btn-cart-clear" onClick={clearCart}>
-              Xóa tất cả
-            </button>
-            <button className="btn-primary btn-cart-book" onClick={handleBookCart}>
-              Chọn chi nhánh
-            </button>
-          </div>
-        </div>
+        </>
       )}
-    </div>
-  </>
-)}
     </div>
   );
 }
