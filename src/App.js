@@ -7,7 +7,6 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [packages, setPackages] = useState([]);
   const [individualTests, setIndividualTests] = useState([]);
-  const [showIndividualTests, setShowIndividualTests] = useState(false);
   const [expandedPackage, setExpandedPackage] = useState(null);
   const [selectedService, setSelectedService] = useState(null);
   const [selectedBranch, setSelectedBranch] = useState(null);
@@ -31,6 +30,8 @@ function App() {
   const [showAllPackages, setShowAllPackages] = useState(false); 
   const [testCart, setTestCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
+  const [activeTab, setActiveTab] = useState('packages'); // ADD THIS
+
 
 
 
@@ -347,7 +348,6 @@ const handleSearch = async () => {
     });
     setBookingResult(null);
     setExpandedPackage(null);
-    setShowIndividualTests(false);
   };
 
   return (
@@ -375,182 +375,201 @@ const handleSearch = async () => {
               </button>
             </div>
 
-            {/* PACKAGES SECTION */}
-            {packages.length > 0 && (
-              <div className="results-section">
-                <h2>Gói dịch vụ ({packages.length})</h2>
-                <div className="results-list">
-{/* Show top 3 by default */}
-{packages.slice(0, showAllPackages ? packages.length : 3).map((pkg, index) => (
-  <div key={pkg.id} className="result-card package-card">
-    {index === 0 && (
-      <div className="recommended-badge">KHUYẾN NGHỊ</div>
-    )}
-    
-    <div className="result-header">
-      <div className="result-title">{pkg.provider_service_name_vn}</div>
-      <div className="result-meta">
-        <span className="provider-name">{pkg.providers?.brand_name_vn}</span>
-        <span className="price">{pkg.discounted_price?.toLocaleString('vi-VN')} đ</span>
-      </div>
-    </div>
-
-    {/* NEW: Suitable For Section */}
-    {pkg.suitable_for && pkg.suitable_for.length > 0 && (
-      <div className="suitable-for-box">
-        <div className="suitable-for-header">PHÙ HỢP VỚI:</div>
-        <div className="suitable-for-list">
-          {pkg.suitable_for.map((item, i) => (
-            <div key={i} className="suitable-for-item">{item}</div>
-          ))}
-        </div>
-        {pkg.target_age_group && (
-          <div className="age-group">Độ tuổi: {pkg.target_age_group}</div>
-        )}
-      </div>
-    )}
-
-    {/* Key Benefits */}
-    {pkg.key_benefits && pkg.key_benefits.length > 0 && (
-      <div className="benefits">
-        {pkg.key_benefits.slice(0, 3).map((benefit, i) => (
-          <div key={i} className="benefit-item">{benefit}</div>
-        ))}
-      </div>
-    )}
-
-    <div className="result-actions">
-      <button 
-        className="btn-secondary"
-        onClick={() => loadPackageComponents(pkg.id)}
+{/* SEARCH RESULTS WITH TABS */}
+{(packages.length > 0 || individualTests.length > 0) && (
+  <div className="results-section">
+    {/* Tabs */}
+    <div className="results-tabs">
+      <button
+        className={`tab-button ${activeTab === 'packages' ? 'active' : ''}`}
+        onClick={() => setActiveTab('packages')}
       >
-        {expandedPackage === pkg.id ? 'Ẩn chi tiết' : 'Xem gói bao gồm'}
+        <span className="tab-icon">Gói</span>
+        <span className="tab-count">({packages.length})</span>
       </button>
-      <button 
-        className="btn-primary btn-choose-package"
-        onClick={() => handleSelectService(pkg)}
+      <button
+        className={`tab-button ${activeTab === 'tests' ? 'active' : ''}`}
+        onClick={() => setActiveTab('tests')}
       >
-        CHỌN GÓI NÀY
+        <span className="tab-icon">Dịch vụ lẻ</span>
+        <span className="tab-count">({individualTests.length})</span>
       </button>
     </div>
 
-    {/* Package components expansion */}
-    {expandedPackage === pkg.id && packageComponents[pkg.id] && (
-      <div className="package-components">
-        <div className="components-header">
-          Gói bao gồm {packageComponents[pkg.id].length} xét nghiệm:
-        </div>
-        <div className="components-list">
-          {packageComponents[pkg.id].map((comp, idx) => (
-            <div key={idx} className="component-item">
-              <span className="component-number">{idx + 1}.</span>
-              <span className="component-name">
-                {comp.component?.display_name || comp.component?.provider_service_name_vn}
-              </span>
-              {(comp.component?.display_price || comp.component?.discounted_price) && (
-                <span className="component-price">
-                  {(comp.component?.display_price || comp.component?.discounted_price)?.toLocaleString('vi-VN')} đ
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
-  </div>
-))}
-
-{/* Show More button */}
-{packages.length > 3 && (
-  <div className="show-more-section">
-    <button 
-      className="btn-show-more"
-      onClick={() => setShowAllPackages(!showAllPackages)}
-    >
-      {showAllPackages 
-        ? 'Thu gọn' 
-        : `Xem thêm ${packages.length - 3} gói khác`
-      }
-    </button>
-  </div>
-)}
-                </div>
-              </div>
-            )}
-
-            {/* INDIVIDUAL TESTS SECTION */}
-            {individualTests.length > 0 && (
-              <div className="results-section individual-tests-section">
-                <div className="individual-tests-header">
-                  <h2>Xét nghiệm đơn lẻ ({individualTests.length})</h2>
-                  <button 
-                    className="btn-toggle"
-                    onClick={() => setShowIndividualTests(!showIndividualTests)}
-                  >
-                    {showIndividualTests ? 'Ẩn' : 'Hiển thị'}
-                  </button>
-                </div>
-                <div className="warning-box">
-                  Khuyến nghị đặt gói để tiết kiệm chi phí
+    {/* Tab Content */}
+    <div className="tab-content">
+      {/* PACKAGES TAB */}
+      {activeTab === 'packages' && packages.length > 0 && (
+        <div className="packages-tab">
+          <div className="results-list">
+            {packages.slice(0, showAllPackages ? packages.length : 3).map((pkg, index) => (
+              <div key={pkg.id} className="result-card package-card">
+                {index === 0 && (
+                  <div className="recommended-badge">KHUYẾN NGHỊ</div>
+                )}
+                
+                <div className="result-header">
+                  <div className="result-title">{pkg.provider_service_name_vn}</div>
+                  <div className="result-meta">
+                    <span className="provider-name">{pkg.providers?.brand_name_vn}</span>
+                    <span className="price">{pkg.discounted_price?.toLocaleString('vi-VN')} đ</span>
+                  </div>
                 </div>
 
-                {showIndividualTests && (
-                  <div className="results-list">
-                    {individualTests.map(test => (
-                      <div key={test.id} className="result-card test-card">
-                        <div className="result-header">
-                          <div className="result-title">{test.provider_service_name_vn}</div>
-                          <div className="result-meta">
-                            <span className="provider-name">{test.providers?.brand_name_vn}</span>
-                            {test.discounted_price ? (
-                              <span className="price">{test.discounted_price?.toLocaleString('vi-VN')} đ</span>
-                            ) : (
-                              <span className="price-unavailable">Liên hệ</span>
-                            )}
-                          </div>
-                        </div>
+                {/* Suitable For Section */}
+                {pkg.suitable_for && pkg.suitable_for.length > 0 && (
+                  <div className="suitable-for-box">
+                    <div className="suitable-for-header">PHÙ HỢP VỚI:</div>
+                    <div className="suitable-for-list">
+                      {pkg.suitable_for.map((item, i) => (
+                        <div key={i} className="suitable-for-item">{item}</div>
+                      ))}
+                    </div>
+                    {pkg.target_age_group && (
+                      <div className="age-group">Độ tuổi: {pkg.target_age_group}</div>
+                    )}
+                  </div>
+                )}
 
-                        {test.short_description && (
-                          <div className="test-description">{test.short_description}</div>
-                        )}
-
-                        <div className="result-actions">
-  {test.discounted_price ? (
-    <>
-      {testCart.find(t => t.id === test.id) ? (
-        <button 
-          className="btn-added"
-          onClick={() => removeFromCart(test.id)}
-        >
-          ✓ Đã thêm
-        </button>
-      ) : (
-        <button 
-          className="btn-primary"
-          onClick={() => addToCart(test)}
-        >
-          + Thêm vào giỏ
-        </button>
-      )}
-    </>
-  ) : (
-    <button className="btn-disabled" disabled>
-      Không thể đặt trực tuyến
-    </button>
-  )}
-</div>
-                      </div>
+                {/* Key Benefits */}
+                {pkg.key_benefits && pkg.key_benefits.length > 0 && (
+                  <div className="benefits">
+                    {pkg.key_benefits.slice(0, 3).map((benefit, i) => (
+                      <div key={i} className="benefit-item">{benefit}</div>
                     ))}
                   </div>
                 )}
-              </div>
-            )}
 
-            {packages.length === 0 && individualTests.length === 0 && searchQuery && !loading && (
-              <div className="no-results">
-                Không tìm thấy dịch vụ phù hợp
+                <div className="result-actions">
+                  <button 
+                    className="btn-secondary"
+                    onClick={() => loadPackageComponents(pkg.id)}
+                  >
+                    {expandedPackage === pkg.id ? 'Ẩn chi tiết' : 'Xem gói bao gồm'}
+                  </button>
+                  <button 
+                    className="btn-primary btn-choose-package"
+                    onClick={() => handleSelectService(pkg)}
+                  >
+                    CHỌN GÓI NÀY
+                  </button>
+                </div>
+
+                {/* Package components expansion */}
+                {expandedPackage === pkg.id && packageComponents[pkg.id] && (
+                  <div className="package-components">
+                    <div className="components-header">
+                      Gói bao gồm {packageComponents[pkg.id].length} xét nghiệm:
+                    </div>
+                    <div className="components-list">
+                      {packageComponents[pkg.id].map((comp, idx) => (
+                        <div key={idx} className="component-item">
+                          <span className="component-number">{idx + 1}.</span>
+                          <span className="component-name">
+                            {comp.component?.display_name || comp.component?.provider_service_name_vn}
+                          </span>
+                          {(comp.component?.display_price || comp.component?.discounted_price) && (
+                            <span className="component-price">
+                              {(comp.component?.display_price || comp.component?.discounted_price)?.toLocaleString('vi-VN')} đ
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Show More button */}
+            {packages.length > 3 && (
+              <div className="show-more-section">
+                <button 
+                  className="btn-show-more"
+                  onClick={() => setShowAllPackages(!showAllPackages)}
+                >
+                  {showAllPackages 
+                    ? 'Thu gọn' 
+                    : `Xem thêm ${packages.length - 3} gói khác`
+                  }
+                </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* TESTS TAB */}
+      {activeTab === 'tests' && individualTests.length > 0 && (
+        <div className="tests-tab">
+          <div className="warning-box">
+            ⚠️ Khuyến nghị đặt gói để tiết kiệm chi phí
+          </div>
+
+          <div className="results-list">
+            {individualTests.map(test => (
+              <div key={test.id} className="result-card test-card">
+                <div className="result-header">
+                  <div className="result-title">{test.provider_service_name_vn}</div>
+                  <div className="result-meta">
+                    <span className="provider-name">{test.providers?.brand_name_vn}</span>
+                    {test.discounted_price ? (
+                      <span className="price">{test.discounted_price?.toLocaleString('vi-VN')} đ</span>
+                    ) : (
+                      <span className="price-unavailable">Liên hệ</span>
+                    )}
+                  </div>
+                </div>
+
+                {test.short_description && (
+                  <div className="test-description">{test.short_description}</div>
+                )}
+
+                <div className="result-actions">
+                  {test.discounted_price ? (
+                    <>
+                      {testCart.find(t => t.id === test.id) ? (
+                        <button 
+                          className="btn-added"
+                          onClick={() => removeFromCart(test.id)}
+                        >
+                          ✓ Đã thêm
+                        </button>
+                      ) : (
+                        <button 
+                          className="btn-primary"
+                          onClick={() => addToCart(test)}
+                        >
+                          + Thêm vào giỏ
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <button className="btn-disabled" disabled>
+                      Không thể đặt trực tuyến
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {activeTab === 'packages' && packages.length === 0 && (
+        <div className="no-results">
+          Không tìm thấy gói dịch vụ phù hợp
+        </div>
+      )}
+      {activeTab === 'tests' && individualTests.length === 0 && (
+        <div className="no-results">
+          Không tìm thấy xét nghiệm đơn lẻ phù hợp
+        </div>
+      )}
+    </div>
+  </div>
+)}
           </div>
         </div>
       )}
