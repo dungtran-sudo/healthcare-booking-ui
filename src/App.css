@@ -703,20 +703,37 @@ body {
 
 .modal-content {
   background: #fff;
-  border-radius: 4px;
+  border-radius: 12px;
   max-width: 900px;
-  width: 100%;
+  width: calc(100% - 2rem);
   max-height: 90vh;
   display: flex;
   flex-direction: column;
+  margin: 1rem;
+  overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  .modal-content {
+    width: calc(100% - 4rem);
+    margin: 2rem;
+    border-radius: 16px;
+  }
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem;
+  padding: 1.25rem 1.5rem;
   border-bottom: 1px solid #e5e5e5;
+  flex-shrink: 0;
+}
+
+@media (max-width: 767px) {
+  .modal-header {
+    padding: 1rem;
+  }
 }
 
 .modal-header h2 {
@@ -750,6 +767,13 @@ body {
 .modal-filters {
   padding: 1rem 1.5rem;
   border-bottom: 1px solid #e5e5e5;
+  flex-shrink: 0;
+}
+
+@media (max-width: 767px) {
+  .modal-filters {
+    padding: 0.75rem 1rem;
+  }
 }
 
 .filter-search {
@@ -779,6 +803,12 @@ body {
   flex: 1;
   overflow-y: auto;
   padding: 1rem 1.5rem;
+}
+
+@media (max-width: 767px) {
+  .modal-body {
+    padding: 0.75rem 1rem;
+  }
 }
 
 .branches-count {
@@ -1257,5 +1287,203 @@ body {
     width: 340px;
     right: 16px;
     bottom: 16px;
+  }
+}
+
+/* =====================================================
+   TIERED PRICING STYLES
+   ===================================================== */
+
+/* Price badge in search results */
+.tier-badge {
+  display: inline-block;
+  background: #e8f4fd;
+  color: #0066cc;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  margin-top: 0.5rem;
+}
+
+.price-prefix {
+  font-weight: normal;
+  color: #666;
+}
+
+/* Tier selector modal */
+.tier-modal {
+  max-width: 600px;
+}
+
+.tier-modal .modal-header {
+  padding: 1.25rem 1.5rem;
+}
+
+.tier-service-info {
+  padding: 1rem 1.25rem;
+  background: #f8f9fa;
+  margin: 0 1.5rem 1.5rem;
+  border-radius: 8px;
+}
+
+@media (max-width: 767px) {
+  .tier-service-info {
+    margin: 0 1rem 1rem;
+  }
+}
+
+.tier-service-name {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #111;
+}
+
+.tier-service-provider {
+  font-size: 0.875rem;
+  color: #666;
+  margin-top: 0.25rem;
+}
+
+.tier-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  padding: 0 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 767px) {
+  .tier-options {
+    padding: 0 1rem;
+    gap: 0.75rem;
+  }
+}
+
+.tier-option {
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #fff;
+}
+
+.tier-option:hover {
+  border-color: #0066cc;
+  background: #f8fbff;
+}
+
+.tier-option.tier-selected {
+  border-color: #0066cc;
+  background: #e8f4fd;
+}
+
+.tier-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.tier-label {
+  font-weight: 600;
+  font-size: 1rem;
+  color: #111;
+}
+
+.tier-default-badge {
+  background: #ff9800;
+  color: #fff;
+  font-size: 0.625rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.tier-price {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0066cc;
+  margin-bottom: 0.75rem;
+}
+
+.tier-features {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.tier-features li {
+  font-size: 0.8125rem;
+  color: #555;
+  padding: 0.25rem 0;
+  padding-left: 1.25rem;
+  position: relative;
+}
+
+.tier-features li::before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  color: #28a745;
+  font-weight: bold;
+}
+
+.tier-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  padding: 1.25rem 1.5rem;
+  border-top: 1px solid #eee;
+  background: #fafafa;
+}
+
+@media (max-width: 767px) {
+  .tier-actions {
+    padding: 1rem;
+  }
+}
+
+/* Selected tier info in booking view */
+.selected-tier-info {
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.tier-label-badge {
+  background: #0066cc;
+  color: #fff;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.tier-features-summary {
+  font-size: 0.8125rem;
+  color: #555;
+}
+
+/* Mobile responsive for tier modal */
+@media (max-width: 768px) {
+  .tier-options {
+    grid-template-columns: 1fr;
+  }
+
+  .tier-modal {
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .tier-actions {
+    flex-direction: column;
+  }
+
+  .tier-actions button {
+    width: 100%;
   }
 }

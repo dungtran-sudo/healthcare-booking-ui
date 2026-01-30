@@ -35,6 +35,29 @@ function App() {
   const [selectedPackageForBooking, setSelectedPackageForBooking] = useState(null);
   const [bookingMode, setBookingMode] = useState(null);
   const [activeTab, setActiveTab] = useState('packages');
+  const [selectedTier, setSelectedTier] = useState(null);
+  const [showTierModal, setShowTierModal] = useState(false);
+  const [pendingService, setPendingService] = useState(null);
+
+  // Helper to get price display for tiered pricing
+  const getPriceDisplay = (service) => {
+    if (service.pricing_data && Array.isArray(service.pricing_data) && service.pricing_data.length > 0) {
+      const prices = service.pricing_data.map(t => t.price);
+      const minPrice = Math.min(...prices);
+      const maxPrice = Math.max(...prices);
+      if (minPrice === maxPrice) {
+        return `${minPrice.toLocaleString('vi-VN')} đ`;
+      }
+      return `${minPrice.toLocaleString('vi-VN')} - ${maxPrice.toLocaleString('vi-VN')} đ`;
+    }
+    return service.discounted_price ? `${service.discounted_price.toLocaleString('vi-VN')} đ` : 'Liên hệ';
+  };
+
+  // Get default tier from pricing data
+  const getDefaultTier = (pricingData) => {
+    if (!pricingData || !Array.isArray(pricingData)) return null;
+    return pricingData.find(t => t.is_default) || pricingData[0];
+  };
 
   // Helper to remove accents
   const removeAccents = (str) => {
@@ -290,16 +313,36 @@ const handleSearch = async () => {
         `Bạn đang có ${testCart.length} xét nghiệm trong giỏ. Chọn gói này sẽ xóa giỏ xét nghiệm. Tiếp tục?`
       );
       if (!confirmed) return;
-      
+
       setTestCart([]);
       setShowCart(false);
     }
 
-    setSelectedService(service);
+    // If service has tiered pricing, show tier selector first
+    if (service.pricing_data && Array.isArray(service.pricing_data) && service.pricing_data.length > 0) {
+      setPendingService(service);
+      setSelectedTier(getDefaultTier(service.pricing_data));
+      setShowTierModal(true);
+      return;
+    }
+
+    // No tiered pricing - proceed directly to branch selection
+    proceedTobranchSelection(service, null);
+  };
+
+  // Proceed to branch selection after tier is selected (or no tier needed)
+  const proceedTobranchSelection = async (service, tier) => {
+    const serviceWithTier = tier ? {
+      ...service,
+      selectedTier: tier,
+      displayPrice: tier.price,
+    } : service;
+
+    setSelectedService(serviceWithTier);
     setBookingMode('package');
-    setSelectedPackageForBooking(service);
+    setSelectedPackageForBooking(serviceWithTier);
     setLoading(true);
-    
+
     try {
       const response = await fetch(`${API_URL}/api/services/${service.id}/branches`);
       const data = await response.json();
@@ -309,6 +352,15 @@ const handleSearch = async () => {
       alert('Lỗi tải chi nhánh: ' + error.message);
     }
     setLoading(false);
+  };
+
+  // Handle tier selection confirmation
+  const handleConfirmTier = () => {
+    if (pendingService && selectedTier) {
+      setShowTierModal(false);
+      proceedTobranchSelection(pendingService, selectedTier);
+      setPendingService(null);
+    }
   };
 
   // Filter branches
@@ -349,6 +401,13 @@ const handleSearch = async () => {
         bookingData.cart_items = selectedService.cart_items;
       } else {
         bookingData.provider_service_id = selectedService.id;
+      }
+
+      // Add selected tier info if present
+      if (selectedService.selectedTier) {
+        bookingData.selected_tier_price = selectedService.selectedTier.price;
+        bookingData.selected_tier = selectedService.selectedTier.tier;
+        bookingData.selected_tier_label = selectedService.selectedTier.label;
       }
 
       const response = await fetch(`${API_URL}/api/bookings`, {
@@ -457,8 +516,16 @@ const handleSearch = async () => {
                               <div className="result-title">{pkg.provider_service_name_vn}</div>
                               <div className="result-meta">
                                 <span className="provider-name">{pkg.providers?.brand_name_vn}</span>
-                                <span className="price">{pkg.discounted_price?.toLocaleString('vi-VN')} đ</span>
+                                <span className="price">
+                                  {pkg.pricing_data && pkg.pricing_data.length > 0 && (
+                                    <span className="price-prefix">Từ </span>
+                                  )}
+                                  {getPriceDisplay(pkg)}
+                                </span>
                               </div>
+                              {pkg.pricing_data && pkg.pricing_data.length > 0 && (
+                                <div className="tier-badge">{pkg.pricing_data.length} mức giá</div>
+                              )}
                             </div>
 
                             {pkg.suitable_for && pkg.suitable_for.length > 0 && (
@@ -657,7 +724,20 @@ const handleSearch = async () => {
               <div className="info-group">
                 <div className="info-label">Dịch vụ đã chọn:</div>
                 <div className="info-value">{selectedService.provider_service_name_vn}</div>
-                <div className="info-sub">{selectedService.providers?.brand_name_vn} • {selectedService.discounted_price?.toLocaleString('vi-VN')} đ</div>
+                <div className="info-sub">
+                  {selectedService.providers?.brand_name_vn} • {' '}
+                  {(selectedService.selectedTier?.price || selectedService.discounted_price)?.toLocaleString('vi-VN')} đ
+                </div>
+                {selectedService.selectedTier && (
+                  <div className="selected-tier-info">
+                    <span className="tier-label-badge">{selectedService.selectedTier.label}</span>
+                    {selectedService.selectedTier.features && (
+                      <span className="tier-features-summary">
+                        {selectedService.selectedTier.features.join(' • ')}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="info-group">
@@ -972,6 +1052,55 @@ const handleSearch = async () => {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TIER SELECTOR MODAL */}
+      {showTierModal && pendingService && (
+        <div className="modal-overlay" onClick={() => setShowTierModal(false)}>
+          <div className="modal-content tier-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Chọn mức dịch vụ</h2>
+              <button className="modal-close" onClick={() => setShowTierModal(false)}>×</button>
+            </div>
+
+            <div className="tier-service-info">
+              <div className="tier-service-name">{pendingService.provider_service_name_vn}</div>
+              <div className="tier-service-provider">{pendingService.providers?.brand_name_vn}</div>
+            </div>
+
+            <div className="tier-options">
+              {pendingService.pricing_data.map((tier, index) => (
+                <div
+                  key={tier.tier || index}
+                  className={`tier-option ${selectedTier?.tier === tier.tier ? 'tier-selected' : ''}`}
+                  onClick={() => setSelectedTier(tier)}
+                >
+                  <div className="tier-header">
+                    <span className="tier-label">{tier.label}</span>
+                    {tier.is_default && <span className="tier-default-badge">Phổ biến</span>}
+                  </div>
+                  <div className="tier-price">{tier.price.toLocaleString('vi-VN')} đ</div>
+                  {tier.features && tier.features.length > 0 && (
+                    <ul className="tier-features">
+                      {tier.features.map((feature, i) => (
+                        <li key={i}>{feature}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="tier-actions">
+              <button className="btn-secondary" onClick={() => setShowTierModal(false)}>
+                Hủy
+              </button>
+              <button className="btn-primary" onClick={handleConfirmTier} disabled={!selectedTier}>
+                Tiếp tục - {selectedTier?.price?.toLocaleString('vi-VN')} đ
+              </button>
             </div>
           </div>
         </div>
