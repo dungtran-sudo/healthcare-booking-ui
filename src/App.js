@@ -1,7 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL;
+
+// Debounce hook
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+
+  return debouncedValue;
+}
 
 function App() {
   // State declarations
@@ -39,6 +54,74 @@ function App() {
   const [showTierModal, setShowTierModal] = useState(false);
   const [pendingService, setPendingService] = useState(null);
 
+  // New states for enhanced search
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [popularServices, setPopularServices] = useState([]);
+  const [hasSearched, setHasSearched] = useState(false);
+  const searchInputRef = useRef(null);
+  const suggestionsRef = useRef(null);
+
+  // Debounced search query for suggestions
+  const debouncedQuery = useDebounce(searchQuery, 300);
+
+  // Fetch popular services on mount
+  useEffect(() => {
+    const fetchPopular = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/search/popular`);
+        const data = await response.json();
+        if (data.success) {
+          setPopularServices(data.data || []);
+        }
+      } catch (error) {
+        console.error('Error fetching popular services:', error);
+      }
+    };
+    fetchPopular();
+  }, []);
+
+  // Fetch suggestions when query changes
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      if (debouncedQuery.length < 2) {
+        setSuggestions([]);
+        return;
+      }
+
+      try {
+        const normalizedQuery = removeAccents(debouncedQuery);
+        const response = await fetch(
+          `${API_URL}/api/search/suggestions?q=${encodeURIComponent(normalizedQuery)}`
+        );
+        const data = await response.json();
+        if (data.success) {
+          setSuggestions(data.data || []);
+        }
+      } catch (error) {
+        console.error('Error fetching suggestions:', error);
+      }
+    };
+    fetchSuggestions();
+  }, [debouncedQuery]);
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(event.target) &&
+        searchInputRef.current &&
+        !searchInputRef.current.contains(event.target)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Helper to get price display for tiered pricing
   const getPriceDisplay = (service) => {
     if (service.pricing_data && Array.isArray(service.pricing_data) && service.pricing_data.length > 0) {
@@ -66,6 +149,55 @@ function App() {
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase();
   };
+
+  // Highlight matching text in search results
+  const highlightMatch = useCallback((text, query) => {
+    if (!query || !text) return text;
+
+    const queryNorm = removeAccents(query.trim());
+    const queryWords = queryNorm.split(/\s+/).filter(w => w.length >= 2);
+
+    if (queryWords.length === 0) return text;
+
+    // Create regex pattern for all query words
+    const escapedWords = queryWords.map(w =>
+      w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    );
+    const pattern = new RegExp(`(${escapedWords.join('|')})`, 'gi');
+
+    // Find matching parts in normalized text
+    const textNorm = removeAccents(text);
+    const matches = [];
+    let match;
+
+    while ((match = pattern.exec(textNorm)) !== null) {
+      matches.push({ start: match.index, end: match.index + match[0].length });
+    }
+
+    if (matches.length === 0) return text;
+
+    // Build highlighted text using original characters
+    const parts = [];
+    let lastEnd = 0;
+
+    matches.forEach(({ start, end }) => {
+      if (start > lastEnd) {
+        parts.push(<span key={`text-${lastEnd}`}>{text.slice(lastEnd, start)}</span>);
+      }
+      parts.push(
+        <mark key={`match-${start}`} className="search-highlight">
+          {text.slice(start, end)}
+        </mark>
+      );
+      lastEnd = end;
+    });
+
+    if (lastEnd < text.length) {
+      parts.push(<span key={`text-${lastEnd}`}>{text.slice(lastEnd)}</span>);
+    }
+
+    return <>{parts}</>;
+  }, []);
 
   // Calculate relevance score
   const calculateRelevance = (service, searchQuery) => {
@@ -226,62 +358,90 @@ function App() {
     setDisplayedTests(prev => prev + 10);
   };
 
-  // Search services
-const handleSearch = async () => {
-  if (!searchQuery.trim()) return;
-  
-  setLoading(true);
-  try {
-    const normalizedQuery = removeAccents(searchQuery);
-    const response = await fetch(
-      `${API_URL}/api/search/services?q=${encodeURIComponent(normalizedQuery)}`
-    );
-    const data = await response.json();
-    
-    // Filter packages: only root packages
-    let pkgs = data.data.filter(s => 
-      s.service_type === 'package' && 
-      s.parent_service_id === null
-    );
-    
-    // Filter tests: ALL atomic services (NEW - no parent filter)
-    let tests = data.data.filter(s => 
-      s.service_type === 'atomic'
-    );
-    
-    // Sort packages by relevance
-    pkgs = pkgs.map(pkg => ({
-      ...pkg,
-      relevanceScore: calculateRelevance(pkg, searchQuery)
-    })).sort((a, b) => b.relevanceScore - a.relevanceScore);
-    
-    // Sort tests by relevance, prioritizing standalone tests
-    tests = tests.map(test => ({
-      ...test,
-      relevanceScore: calculateRelevance(test, searchQuery),
-      isInPackage: test.parent_service_id !== null
-    })).sort((a, b) => {
-      // Primary sort: by relevance
-      if (b.relevanceScore !== a.relevanceScore) {
-        return b.relevanceScore - a.relevanceScore;
+  // Perform search with given query
+  const performSearch = useCallback(async (query) => {
+    if (!query?.trim()) return;
+
+    setLoading(true);
+    setShowSuggestions(false);
+    setHasSearched(true);
+
+    try {
+      const normalizedQuery = removeAccents(query);
+      const response = await fetch(
+        `${API_URL}/api/search/services?q=${encodeURIComponent(normalizedQuery)}`
+      );
+      const data = await response.json();
+
+      // Filter packages: only root packages
+      let pkgs = data.data.filter(s =>
+        s.service_type === 'package' &&
+        s.parent_service_id === null
+      );
+
+      // Filter tests: ALL atomic services
+      let tests = data.data.filter(s =>
+        s.service_type === 'atomic'
+      );
+
+      // Sort packages by relevance
+      pkgs = pkgs.map(pkg => ({
+        ...pkg,
+        relevanceScore: calculateRelevance(pkg, query)
+      })).sort((a, b) => b.relevanceScore - a.relevanceScore);
+
+      // Sort tests by relevance, prioritizing standalone tests
+      tests = tests.map(test => ({
+        ...test,
+        relevanceScore: calculateRelevance(test, query),
+        isInPackage: test.parent_service_id !== null
+      })).sort((a, b) => {
+        // Primary sort: by relevance
+        if (b.relevanceScore !== a.relevanceScore) {
+          return b.relevanceScore - a.relevanceScore;
+        }
+        // Secondary sort: standalone tests first
+        if (a.isInPackage !== b.isInPackage) {
+          return a.isInPackage ? 1 : -1;
+        }
+        return 0;
+      });
+
+      setPackages(pkgs);
+      setIndividualTests(tests);
+      setDisplayedPackages(10);
+      setDisplayedTests(10);
+
+      // Auto-switch to tab with more results
+      if (pkgs.length > 0 && tests.length === 0) {
+        setActiveTab('packages');
+      } else if (tests.length > 0 && pkgs.length === 0) {
+        setActiveTab('tests');
       }
-      // Secondary sort: standalone tests first
-      if (a.isInPackage !== b.isInPackage) {
-        return a.isInPackage ? 1 : -1;
-      }
-      return 0;
-    });
-    
-    setPackages(pkgs);
-    setIndividualTests(tests);
-    setDisplayedPackages(10);
-    setDisplayedTests(10);
-    
-  } catch (error) {
-    alert('Lỗi tìm kiếm: ' + error.message);
-  }
-  setLoading(false);
-};
+
+    } catch (error) {
+      alert('Lỗi tìm kiếm: ' + error.message);
+    }
+    setLoading(false);
+  }, []);
+
+  // Search services wrapper
+  const handleSearch = () => {
+    performSearch(searchQuery);
+  };
+
+  // Handle suggestion selection
+  const handleSuggestionSelect = (suggestion) => {
+    setSearchQuery(suggestion.name);
+    setShowSuggestions(false);
+    performSearch(suggestion.name);
+  };
+
+  // Handle popular service selection
+  const handlePopularSelect = (service) => {
+    setSearchQuery(service.provider_service_name_vn);
+    performSearch(service.provider_service_name_vn);
+  };
 
   // Get package components
   const loadPackageComponents = async (packageId) => {
@@ -465,19 +625,75 @@ const handleSearch = async () => {
       {currentView === 'search' && (
         <div className="container">
           <div className="search-section">
-            <div className="search-box">
-              <input
-                type="text"
-                placeholder="Tìm theo tên dịch vụ, gói xét nghiệm..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                autoFocus
-              />
-              <button onClick={handleSearch} disabled={loading}>
-                {loading ? 'Đang tìm...' : 'Tìm kiếm'}
-              </button>
+            <div className="search-box-wrapper">
+              <div className="search-box">
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Tìm theo tên dịch vụ, gói xét nghiệm..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                  autoFocus
+                />
+                <button onClick={handleSearch} disabled={loading}>
+                  {loading ? 'Đang tìm...' : 'Tìm kiếm'}
+                </button>
+              </div>
+
+              {/* Autocomplete suggestions dropdown */}
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="suggestions-dropdown" ref={suggestionsRef}>
+                  {suggestions.map((suggestion, index) => (
+                    <div
+                      key={index}
+                      className="suggestion-item"
+                      onClick={() => handleSuggestionSelect(suggestion)}
+                    >
+                      <span className="suggestion-icon">
+                        {suggestion.type === 'package' ? '📦' : '🔬'}
+                      </span>
+                      <div className="suggestion-content">
+                        <span className="suggestion-name">{suggestion.name}</span>
+                        {suggestion.provider && (
+                          <span className="suggestion-provider">{suggestion.provider}</span>
+                        )}
+                      </div>
+                      {suggestion.price && (
+                        <span className="suggestion-price">
+                          {suggestion.price.toLocaleString('vi-VN')} đ
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
+
+            {/* Popular services when no search has been done */}
+            {!hasSearched && popularServices.length > 0 && (
+              <div className="popular-services">
+                <div className="popular-header">Dịch vụ phổ biến</div>
+                <div className="popular-list">
+                  {popularServices.slice(0, 6).map((service) => (
+                    <div
+                      key={service.id}
+                      className="popular-item"
+                      onClick={() => handlePopularSelect(service)}
+                    >
+                      <span className="popular-icon">
+                        {service.service_type === 'package' ? '📦' : '🔬'}
+                      </span>
+                      <span className="popular-name">{service.provider_service_name_vn}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* SEARCH RESULTS WITH TABS */}
             {(packages.length > 0 || individualTests.length > 0) && (
@@ -511,9 +727,11 @@ const handleSearch = async () => {
                             {index === 0 && (
                               <div className="recommended-badge">KHUYẾN NGHỊ</div>
                             )}
-                            
+
                             <div className="result-header">
-                              <div className="result-title">{pkg.provider_service_name_vn}</div>
+                              <div className="result-title">
+                                {highlightMatch(pkg.provider_service_name_vn, searchQuery)}
+                              </div>
                               <div className="result-meta">
                                 <span className="provider-name">{pkg.providers?.brand_name_vn}</span>
                                 <span className="price">
@@ -615,7 +833,9 @@ const handleSearch = async () => {
                         {individualTests.slice(0, displayedTests).map(test => (
                           <div key={test.id} className="result-card test-card">
                             <div className="result-header">
-                              <div className="result-title">{test.provider_service_name_vn}</div>
+                              <div className="result-title">
+                                {highlightMatch(test.provider_service_name_vn, searchQuery)}
+                              </div>
                               <div className="result-meta">
                                 <span className="provider-name">{test.providers?.brand_name_vn}</span>
                                 {test.discounted_price ? (
