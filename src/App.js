@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
+import SmartSearch from './SmartSearch';
 
 const API_URL = process.env.REACT_APP_API_URL;
 
@@ -123,6 +124,9 @@ function App() {
   const [hasSearched, setHasSearched] = useState(false);
   const searchInputRef = useRef(null);
   const suggestionsRef = useRef(null);
+
+  // Smart Search mode toggle
+  const [searchMode, setSearchMode] = useState('regular'); // 'regular' or 'smart'
 
   // Debounced search query for suggestions
   const debouncedQuery = useDebounce(searchQuery, 300);
@@ -624,6 +628,33 @@ function App() {
       {/* SEARCH VIEW */}
       {currentView === 'search' && (
         <div className="container">
+          {/* Search Mode Toggle */}
+          <div className="search-mode-toggle">
+            <button
+              className={`mode-button ${searchMode === 'regular' ? 'active' : ''}`}
+              onClick={() => setSearchMode('regular')}
+            >
+              Tìm theo tên
+            </button>
+            <button
+              className={`mode-button ${searchMode === 'smart' ? 'active' : ''}`}
+              onClick={() => setSearchMode('smart')}
+            >
+              Tìm theo triệu chứng
+            </button>
+          </div>
+
+          {/* Smart Search Mode */}
+          {searchMode === 'smart' && (
+            <SmartSearch
+              onSelectService={(service) => {
+                handleSelectService(service);
+              }}
+            />
+          )}
+
+          {/* Regular Search Mode */}
+          {searchMode === 'regular' && (
           <div className="search-section">
             <div className="search-box-wrapper">
               <div className="search-box">
@@ -927,6 +958,7 @@ function App() {
               </div>
             )}
           </div>
+          )}
         </div>
       )}
 
