@@ -234,7 +234,7 @@ export function cacheSearchResult(query, result) {
   });
 }
 
-export default {
+const cacheModule = {
   initializeCache,
   getCachedPathways,
   getCachedCanonicalServices,
@@ -244,3 +244,5 @@ export default {
   getCachedSearch,
   cacheSearchResult
 };
+
+export default cacheModule;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useCache } from './CacheContext';
 import { getCachedSearch, cacheSearchResult } from './cache';
 
@@ -57,7 +57,6 @@ function SmartSearch({ onSelectService }) {
 
   // Use cached pathways
   const pathways = cachedPathways || [];
-  const dbReady = cacheReady;
 
   // Perform smart search with caching
   const performSmartSearch = useCallback(async (searchQuery, pathwayId = null) => {
