@@ -23,6 +23,22 @@ const CoverageBar = ({ score, label }) => {
   );
 };
 
+// Category name mapping for Vietnamese display
+const categoryNames = {
+  'metabolic': 'Chuyển hóa',
+  'cardiac': 'Tim mạch',
+  'hepatic': 'Gan',
+  'renal': 'Thận',
+  'thyroid': 'Tuyến giáp',
+  'annual': 'Khám định kỳ',
+  'surgical': 'Phẫu thuật',
+  'hematology': 'Huyết học',
+  'infectious': 'Truyền nhiễm',
+  'reproductive': 'Sinh sản',
+  'bone': 'Xương khớp',
+  'Khác': 'Khác'
+};
+
 function SmartSearch({ onSelectService }) {
   // State
   const [query, setQuery] = useState('');
@@ -34,6 +50,7 @@ function SmartSearch({ onSelectService }) {
   const [patientGender, setPatientGender] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [dbReady, setDbReady] = useState(null);
+  const [showPathwayModal, setShowPathwayModal] = useState(false);
 
   // Check database status on mount
   useEffect(() => {
@@ -104,11 +121,19 @@ function SmartSearch({ onSelectService }) {
     setLoading(false);
   }, [patientAge, patientGender]);
 
-  // Handle pathway selection
+  // Handle pathway selection from modal
   const handlePathwaySelect = (pathway) => {
     setSelectedPathway(pathway);
     setQuery(pathway.name_vn);
+    setShowPathwayModal(false);
     performSmartSearch(null, pathway.id);
+  };
+
+  // Clear selected pathway
+  const handleClearPathway = () => {
+    setSelectedPathway(null);
+    setQuery('');
+    setSearchResults(null);
   };
 
   // Handle free text search
@@ -177,83 +202,78 @@ function SmartSearch({ onSelectService }) {
 
   return (
     <div className="smart-search">
-      {/* Header */}
-      <div className="smart-search-header">
-        <h2>Tìm kiếm thông minh</h2>
-        <p className="smart-search-subtitle">
-          Nhập triệu chứng hoặc tình trạng sức khỏe để tìm gói xét nghiệm phù hợp nhất
-        </p>
-      </div>
+      {/* Compact Search Section */}
+      <div className="smart-search-compact">
+        <div className="smart-search-row">
+          {/* Search Input */}
+          <div className="smart-search-input">
+            <input
+              type="text"
+              placeholder="Nhập triệu chứng: tiểu đường, mệt mỏi, đau ngực..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            />
+          </div>
 
-      {/* Search Input */}
-      <div className="smart-search-input-section">
-        <div className="smart-search-box">
-          <input
-            type="text"
-            placeholder="Ví dụ: tiểu đường, mệt mỏi, đau ngực, khám tổng quát..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-          />
-          <button onClick={handleSearch} disabled={loading || !query.trim()}>
-            {loading ? 'Đang tìm...' : 'Tìm kiếm'}
+          {/* Pathway Selector Button */}
+          <button
+            className="btn-pathway-select"
+            onClick={() => setShowPathwayModal(true)}
+          >
+            <span className="btn-icon">📋</span>
+            <span className="btn-label">Chọn nhu cầu</span>
+          </button>
+
+          {/* Search Button */}
+          <button
+            className="btn-primary btn-search"
+            onClick={handleSearch}
+            disabled={loading || !query.trim()}
+          >
+            {loading ? 'Đang tìm...' : 'Tìm'}
           </button>
         </div>
 
-        {/* Advanced filters toggle */}
-        <button
-          className="btn-text advanced-toggle"
-          onClick={() => setShowAdvanced(!showAdvanced)}
-        >
-          {showAdvanced ? 'Ẩn bộ lọc' : 'Bộ lọc nâng cao'}
-        </button>
+        {/* Selected Pathway Chip + Advanced Filters (inline) */}
+        <div className="smart-search-meta">
+          {selectedPathway && (
+            <div className="selected-pathway-chip">
+              <span className="chip-label">{selectedPathway.name_vn}</span>
+              <button className="chip-remove" onClick={handleClearPathway}>×</button>
+            </div>
+          )}
 
-        {showAdvanced && (
-          <div className="advanced-filters">
-            <div className="filter-group">
-              <label>Tuổi bệnh nhân:</label>
+          <button
+            className="btn-text advanced-toggle"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+          >
+            {showAdvanced ? 'Ẩn bộ lọc' : 'Bộ lọc'}
+          </button>
+
+          {showAdvanced && (
+            <div className="inline-filters">
               <input
                 type="number"
-                placeholder="VD: 45"
+                placeholder="Tuổi"
                 value={patientAge}
                 onChange={(e) => setPatientAge(e.target.value)}
                 min="1"
                 max="120"
+                className="filter-input-small"
               />
-            </div>
-            <div className="filter-group">
-              <label>Giới tính:</label>
-              <select value={patientGender} onChange={(e) => setPatientGender(e.target.value)}>
-                <option value="">Tất cả</option>
+              <select
+                value={patientGender}
+                onChange={(e) => setPatientGender(e.target.value)}
+                className="filter-select-small"
+              >
+                <option value="">Giới tính</option>
                 <option value="male">Nam</option>
                 <option value="female">Nữ</option>
               </select>
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* Quick Pathway Buttons */}
-      <div className="pathway-section">
-        <h3>Hoặc chọn nhanh theo nhu cầu:</h3>
-
-        {Object.entries(groupedPathways).map(([category, categoryPathways]) => (
-          <div key={category} className="pathway-category">
-            <div className="pathway-category-name">{category}</div>
-            <div className="pathway-buttons">
-              {categoryPathways.map(pathway => (
-                <button
-                  key={pathway.id}
-                  className={`pathway-button ${selectedPathway?.id === pathway.id ? 'selected' : ''}`}
-                  onClick={() => handlePathwaySelect(pathway)}
-                >
-                  <span className="pathway-name">{pathway.name_vn}</span>
-                  {pathway.is_common && <span className="pathway-common-badge">Phổ biến</span>}
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
+          )}
+        </div>
       </div>
 
       {/* Search Results */}
@@ -266,44 +286,40 @@ function SmartSearch({ onSelectService }) {
 
       {searchResults && !loading && (
         <div className="smart-search-results">
-          {/* Suggested Pathway Info */}
+          {/* Suggested Pathway Info - Compact */}
           {searchResults.suggested_pathway && (
-            <div className="suggested-pathway-info">
-              <div className="pathway-info-header">
+            <div className="suggested-pathway-compact">
+              <div className="pathway-info-row">
                 <h3>{searchResults.suggested_pathway.name_vn}</h3>
                 <span className="pathway-code">{searchResults.suggested_pathway.code}</span>
               </div>
-              {searchResults.suggested_pathway.description && (
-                <p className="pathway-description">{searchResults.suggested_pathway.description}</p>
-              )}
 
-              {/* Required Services */}
-              {searchResults.suggested_pathway.required_services?.length > 0 && (
-                <div className="pathway-services">
-                  <h4>Xét nghiệm bắt buộc ({searchResults.suggested_pathway.required_services.length}):</h4>
-                  <div className="service-tags required">
-                    {searchResults.suggested_pathway.required_services.map(service => (
-                      <span key={service.id} className="service-tag required">
-                        {service.name_vn}
-                      </span>
-                    ))}
+              <div className="pathway-tests-row">
+                {searchResults.suggested_pathway.required_services?.length > 0 && (
+                  <div className="tests-group">
+                    <span className="tests-label">Bắt buộc:</span>
+                    <div className="tests-tags">
+                      {searchResults.suggested_pathway.required_services.map(service => (
+                        <span key={service.id} className="test-tag required">
+                          {service.name_vn}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-
-              {/* Recommended Services */}
-              {searchResults.suggested_pathway.recommended_services?.length > 0 && (
-                <div className="pathway-services">
-                  <h4>Xét nghiệm khuyến nghị ({searchResults.suggested_pathway.recommended_services.length}):</h4>
-                  <div className="service-tags recommended">
-                    {searchResults.suggested_pathway.recommended_services.map(service => (
-                      <span key={service.id} className="service-tag recommended">
-                        {service.name_vn}
-                      </span>
-                    ))}
+                )}
+                {searchResults.suggested_pathway.recommended_services?.length > 0 && (
+                  <div className="tests-group">
+                    <span className="tests-label">Khuyến nghị:</span>
+                    <div className="tests-tags">
+                      {searchResults.suggested_pathway.recommended_services.map(service => (
+                        <span key={service.id} className="test-tag recommended">
+                          {service.name_vn}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           )}
 
@@ -316,7 +332,6 @@ function SmartSearch({ onSelectService }) {
                   <span className="section-icon">✅</span>
                   Gói hoàn chỉnh ({searchResults.results.complete_packages.length})
                 </h3>
-                <p className="section-description">Các gói bao gồm đầy đủ các xét nghiệm cần thiết</p>
 
                 <div className="package-list">
                   {searchResults.results.complete_packages.map((pkg, index) => (
@@ -342,23 +357,24 @@ function SmartSearch({ onSelectService }) {
                         </div>
                       </div>
 
-                      <div className="package-price">
-                        {pkg.price?.toLocaleString('vi-VN')} đ
+                      <div className="package-footer">
+                        <div className="package-price">
+                          {pkg.price?.toLocaleString('vi-VN')} đ
+                        </div>
+                        <button
+                          className="btn-primary btn-select-package"
+                          onClick={() => onSelectService && onSelectService({
+                            id: pkg.provider_service_id,
+                            provider_service_name_vn: pkg.name,
+                            discounted_price: pkg.price,
+                            providers: pkg.provider,
+                            service_type: 'package',
+                            pricing_data: pkg.pricing_data
+                          })}
+                        >
+                          Chọn
+                        </button>
                       </div>
-
-                      <button
-                        className="btn-primary btn-select-package"
-                        onClick={() => onSelectService && onSelectService({
-                          id: pkg.provider_service_id,
-                          provider_service_name_vn: pkg.name,
-                          discounted_price: pkg.price,
-                          providers: pkg.provider,
-                          service_type: 'package',
-                          pricing_data: pkg.pricing_data
-                        })}
-                      >
-                        Chọn gói này
-                      </button>
                     </div>
                   ))}
                 </div>
@@ -372,7 +388,6 @@ function SmartSearch({ onSelectService }) {
                   <span className="section-icon">📦</span>
                   Gói một phần ({searchResults.results.partial_packages.length})
                 </h3>
-                <p className="section-description">Các gói bao gồm một số xét nghiệm cần thiết</p>
 
                 <div className="package-list">
                   {searchResults.results.partial_packages.map(pkg => (
@@ -384,30 +399,28 @@ function SmartSearch({ onSelectService }) {
 
                       <div className="package-coverage">
                         <CoverageBar score={pkg.coverage_score} label="Độ phủ" />
-                      </div>
-
-                      {pkg.missing_canonical_ids?.length > 0 && (
-                        <div className="missing-services">
+                        {pkg.missing_canonical_ids?.length > 0 && (
                           <span className="missing-label">Thiếu {pkg.missing_canonical_ids.length} xét nghiệm</span>
-                        </div>
-                      )}
-
-                      <div className="package-price">
-                        {pkg.price?.toLocaleString('vi-VN')} đ
+                        )}
                       </div>
 
-                      <button
-                        className="btn-secondary btn-select-package"
-                        onClick={() => onSelectService && onSelectService({
-                          id: pkg.provider_service_id,
-                          provider_service_name_vn: pkg.name,
-                          discounted_price: pkg.price,
-                          providers: pkg.provider,
-                          service_type: 'package'
-                        })}
-                      >
-                        Chọn gói này
-                      </button>
+                      <div className="package-footer">
+                        <div className="package-price">
+                          {pkg.price?.toLocaleString('vi-VN')} đ
+                        </div>
+                        <button
+                          className="btn-secondary btn-select-package"
+                          onClick={() => onSelectService && onSelectService({
+                            id: pkg.provider_service_id,
+                            provider_service_name_vn: pkg.name,
+                            discounted_price: pkg.price,
+                            providers: pkg.provider,
+                            service_type: 'package'
+                          })}
+                        >
+                          Chọn
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -421,9 +434,6 @@ function SmartSearch({ onSelectService }) {
                   <span className="section-icon">🔬</span>
                   Đặt lẻ từng xét nghiệm
                 </h3>
-                <p className="section-description">
-                  Tổng chi phí nếu đặt từng xét nghiệm riêng lẻ
-                </p>
 
                 <div className="individual-summary">
                   <div className="individual-total">
@@ -460,9 +470,48 @@ function SmartSearch({ onSelectService }) {
              !searchResults.results?.individual_options && (
               <div className="no-results">
                 <p>Không tìm thấy gói xét nghiệm phù hợp.</p>
-                <p>Hãy thử tìm kiếm với từ khóa khác hoặc chọn một nhu cầu từ danh sách trên.</p>
+                <p>Hãy thử từ khóa khác hoặc chọn nhu cầu từ danh sách.</p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Pathway Selection Modal */}
+      {showPathwayModal && (
+        <div className="modal-overlay" onClick={() => setShowPathwayModal(false)}>
+          <div className="modal-content pathway-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Chọn nhu cầu khám</h2>
+              <button className="modal-close" onClick={() => setShowPathwayModal(false)}>×</button>
+            </div>
+
+            <div className="modal-body pathway-modal-body">
+              {Object.entries(groupedPathways).map(([category, categoryPathways]) => (
+                <div key={category} className="pathway-modal-category">
+                  <div className="pathway-modal-category-name">
+                    {categoryNames[category] || category}
+                  </div>
+                  <div className="pathway-modal-list">
+                    {categoryPathways.map(pathway => (
+                      <button
+                        key={pathway.id}
+                        className={`pathway-modal-item ${selectedPathway?.id === pathway.id ? 'selected' : ''}`}
+                        onClick={() => handlePathwaySelect(pathway)}
+                      >
+                        <div className="pathway-modal-item-main">
+                          <span className="pathway-modal-item-name">{pathway.name_vn}</span>
+                          {pathway.is_common && <span className="pathway-common-badge">Phổ biến</span>}
+                        </div>
+                        <div className="pathway-modal-item-sub">
+                          {pathway.required_services?.length || 0} xét nghiệm bắt buộc
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
