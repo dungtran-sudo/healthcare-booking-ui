@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useCache } from './CacheContext';
+import { getCachedSearch, cacheSearchResult } from './cache';
 
 const API_URL = process.env.REACT_APP_API_URL;
 
@@ -40,51 +42,41 @@ const categoryNames = {
 };
 
 function SmartSearch({ onSelectService }) {
+  // Get cached data
+  const { pathways: cachedPathways, isReady: cacheReady, isLoading: cacheLoading } = useCache();
+
   // State
   const [query, setQuery] = useState('');
-  const [pathways, setPathways] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchResults, setSearchResults] = useState(null);
   const [selectedPathway, setSelectedPathway] = useState(null);
   const [patientAge, setPatientAge] = useState('');
   const [patientGender, setPatientGender] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [dbReady, setDbReady] = useState(null);
   const [showPathwayModal, setShowPathwayModal] = useState(false);
 
-  // Check database status on mount
-  useEffect(() => {
-    const checkDb = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/setup/status`);
-        const data = await response.json();
-        setDbReady(data.status?.ready || false);
-      } catch (error) {
-        console.error('Error checking DB status:', error);
-        setDbReady(false);
-      }
-    };
-    checkDb();
-  }, []);
+  // Use cached pathways
+  const pathways = cachedPathways || [];
+  const dbReady = cacheReady;
 
-  // Fetch clinical pathways
-  useEffect(() => {
-    const fetchPathways = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/clinical-pathways`);
-        const data = await response.json();
-        if (data.success) {
-          setPathways(data.data || []);
-        }
-      } catch (error) {
-        console.error('Error fetching pathways:', error);
-      }
-    };
-    fetchPathways();
-  }, []);
-
-  // Perform smart search
+  // Perform smart search with caching
   const performSmartSearch = useCallback(async (searchQuery, pathwayId = null) => {
+    // Create cache key
+    const cacheKey = pathwayId
+      ? `pathway:${pathwayId}:${patientAge}:${patientGender}`
+      : `query:${searchQuery}:${patientAge}:${patientGender}`;
+
+    // Check cache first
+    const cached = getCachedSearch(cacheKey);
+    if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) { // 5 min cache
+      console.log('Using cached search result');
+      setSearchResults(cached.result);
+      if (cached.result.suggested_pathway) {
+        setSelectedPathway(cached.result.suggested_pathway);
+      }
+      return;
+    }
+
     setLoading(true);
     setSearchResults(null);
 
@@ -113,6 +105,8 @@ function SmartSearch({ onSelectService }) {
         if (data.suggested_pathway) {
           setSelectedPathway(data.suggested_pathway);
         }
+        // Cache the result
+        cacheSearchResult(cacheKey, data);
       }
     } catch (error) {
       console.error('Smart search error:', error);
@@ -151,8 +145,18 @@ function SmartSearch({ onSelectService }) {
     return acc;
   }, {});
 
-  // If database not ready, show setup instructions
-  if (dbReady === false) {
+  // Loading state while cache initializes
+  if (cacheLoading) {
+    return (
+      <div className="smart-search-loading">
+        <div className="loading-spinner" />
+        <p>Đang tải dữ liệu...</p>
+      </div>
+    );
+  }
+
+  // If no pathways loaded, show setup instructions
+  if (!cacheReady || pathways.length === 0) {
     return (
       <div className="smart-search-setup">
         <div className="setup-notice">
@@ -186,16 +190,6 @@ function SmartSearch({ onSelectService }) {
             Kiểm tra lại
           </button>
         </div>
-      </div>
-    );
-  }
-
-  // Loading state for initial check
-  if (dbReady === null) {
-    return (
-      <div className="smart-search-loading">
-        <div className="loading-spinner" />
-        <p>Đang kiểm tra...</p>
       </div>
     );
   }

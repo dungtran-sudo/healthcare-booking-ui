@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
 import SmartSearch from './SmartSearch';
+import { useCache } from './CacheContext';
 
 const API_URL = process.env.REACT_APP_API_URL;
 
@@ -82,6 +83,9 @@ const calculateRelevance = (service, searchQuery) => {
 };
 
 function App() {
+  // Get cached data
+  const { popularServices: cachedPopularServices } = useCache();
+
   // State declarations
   const [searchQuery, setSearchQuery] = useState('');
   const [packages, setPackages] = useState([]);
@@ -120,32 +124,18 @@ function App() {
   // New states for enhanced search
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [popularServices, setPopularServices] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
   const searchInputRef = useRef(null);
   const suggestionsRef = useRef(null);
+
+  // Use cached popular services
+  const popularServices = cachedPopularServices || [];
 
   // Smart Search mode toggle
   const [searchMode, setSearchMode] = useState('regular'); // 'regular' or 'smart'
 
   // Debounced search query for suggestions
   const debouncedQuery = useDebounce(searchQuery, 300);
-
-  // Fetch popular services on mount
-  useEffect(() => {
-    const fetchPopular = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/search/popular`);
-        const data = await response.json();
-        if (data.success) {
-          setPopularServices(data.data || []);
-        }
-      } catch (error) {
-        console.error('Error fetching popular services:', error);
-      }
-    };
-    fetchPopular();
-  }, []);
 
   // Fetch suggestions when query changes
   useEffect(() => {
