@@ -27,60 +27,6 @@ const removeAccents = (str) => {
     .toLowerCase();
 };
 
-// Calculate relevance score (moved outside component for performance)
-const calculateRelevance = (service, searchQuery) => {
-  const query = removeAccents(searchQuery).trim();
-  const name = removeAccents(service.provider_service_name_vn || '');
-  const description = removeAccents(service.short_description || '');
-  const queryWords = query.split(/\s+/).filter(w => w.length > 2);
-
-  let score = 0;
-
-  const allWordsInName = queryWords.every(word => name.includes(word));
-  const allWordsInDescription = queryWords.every(word => description.includes(word));
-
-  if (!allWordsInName && !allWordsInDescription) {
-    const someWordsMatch = queryWords.some(word => name.includes(word) || description.includes(word));
-    if (!someWordsMatch) {
-      return 0;
-    }
-    return 5;
-  }
-
-  if (name === query) {
-    score += 100;
-  } else if (name.startsWith(query)) {
-    score += 80;
-  } else if (name.includes(query)) {
-    score += 60;
-  } else if (allWordsInName) {
-    score += 40;
-    const firstWordIndex = name.indexOf(queryWords[0]);
-    const lastWordIndex = name.indexOf(queryWords[queryWords.length - 1]);
-    const distance = lastWordIndex - firstWordIndex;
-    if (distance < 20) score += 10;
-  } else if (allWordsInDescription) {
-    score += 20;
-  }
-
-  if (service.service_type === 'package') {
-    score += 10;
-  }
-
-  queryWords.forEach(word => {
-    const wordBoundaryRegex = new RegExp(`\\b${word}\\b`);
-    if (wordBoundaryRegex.test(name)) {
-      score += 5;
-    }
-  });
-
-  if (name.length > 100) {
-    score -= 5;
-  }
-
-  return score;
-};
-
 function App() {
   // Get cached data
   const { popularServices: cachedPopularServices } = useCache();
