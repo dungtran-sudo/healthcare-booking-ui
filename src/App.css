@@ -229,7 +229,30 @@ body {
   font-style: italic;
 }
 
-/* Location display */
+/* Location filter indicator */
+.location-filter-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: #e8f4ff;
+  border: 1px solid #b3d9ff;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+}
+
+.location-filter-indicator .location-icon {
+  color: #0066cc;
+  font-weight: 500;
+}
+
+.location-filter-indicator .location-value {
+  color: #333;
+  font-weight: 600;
+}
+
+/* Location display in result cards */
 .result-location {
   font-size: 0.8125rem;
   color: #888;

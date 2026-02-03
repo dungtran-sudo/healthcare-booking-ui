@@ -76,6 +76,9 @@ function App() {
   // State for expanded descriptions
   const [expandedDescriptions, setExpandedDescriptions] = useState({});
 
+  // State for parsed location from search
+  const [parsedLocation, setParsedLocation] = useState(null);
+
   // Use cached popular services
   const popularServices = cachedPopularServices || [];
 
@@ -320,6 +323,7 @@ function App() {
     setShowSuggestions(false);
     setHasSearched(true);
     setExpandedDescriptions({});
+    setParsedLocation(null);
 
     try {
       const response = await fetch(
@@ -333,6 +337,11 @@ function App() {
         setIndividualTests(data.services || []);
         setDisplayedPackages(10);
         setDisplayedTests(10);
+
+        // Save parsed location info if detected
+        if (data.parsed && (data.parsed.city || data.parsed.district)) {
+          setParsedLocation(data.parsed);
+        }
 
         // Auto-switch to tab with more results
         if (data.packages?.length > 0 && (!data.services || data.services.length === 0)) {
@@ -623,6 +632,16 @@ function App() {
             {/* SEARCH RESULTS WITH TABS */}
             {(packages.length > 0 || individualTests.length > 0) && (
               <div className="results-section">
+                {/* Location filter indicator */}
+                {parsedLocation && (parsedLocation.city || parsedLocation.district) && (
+                  <div className="location-filter-indicator">
+                    <span className="location-icon">Khu vực:</span>
+                    <span className="location-value">
+                      {[parsedLocation.district, parsedLocation.city].filter(Boolean).join(', ')}
+                    </span>
+                  </div>
+                )}
+
                 {/* Tabs */}
                 <div className="results-tabs">
                   <button
