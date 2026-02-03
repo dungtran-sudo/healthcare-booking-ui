@@ -78,6 +78,8 @@ function App() {
 
   // State for parsed location from search
   const [parsedLocation, setParsedLocation] = useState(null);
+  const [locationInfo, setLocationInfo] = useState(null);
+  const [expandedBranches, setExpandedBranches] = useState({});
 
   // Use cached popular services
   const popularServices = cachedPopularServices || [];
@@ -315,6 +317,14 @@ function App() {
     return text.substring(0, maxLength).trim() + '...';
   };
 
+  // Toggle branches expansion
+  const toggleBranches = (id) => {
+    setExpandedBranches(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
   // Perform search with given query using V2 API
   const performSearch = useCallback(async (query) => {
     if (!query?.trim()) return;
@@ -324,6 +334,8 @@ function App() {
     setHasSearched(true);
     setExpandedDescriptions({});
     setParsedLocation(null);
+    setLocationInfo(null);
+    setExpandedBranches({});
 
     try {
       const response = await fetch(
@@ -341,6 +353,11 @@ function App() {
         // Save parsed location info if detected
         if (data.parsed && (data.parsed.city || data.parsed.district)) {
           setParsedLocation(data.parsed);
+        }
+
+        // Save location info message
+        if (data.location_info) {
+          setLocationInfo(data.location_info);
         }
 
         // Auto-switch to tab with more results
@@ -633,11 +650,11 @@ function App() {
             {(packages.length > 0 || individualTests.length > 0) && (
               <div className="results-section">
                 {/* Location filter indicator */}
-                {parsedLocation && (parsedLocation.city || parsedLocation.district) && (
-                  <div className="location-filter-indicator">
+                {locationInfo && (
+                  <div className={`location-filter-indicator ${locationInfo.has_exact_matches ? '' : 'no-match'}`}>
                     <span className="location-icon">Khu vực:</span>
                     <span className="location-value">
-                      {[parsedLocation.district, parsedLocation.city].filter(Boolean).join(', ')}
+                      {locationInfo.message}
                     </span>
                   </div>
                 )}
@@ -682,12 +699,61 @@ function App() {
                                   {pkg.price ? `${pkg.price.toLocaleString('vi-VN')} đ` : getPriceDisplay(pkg)}
                                 </span>
                               </div>
-                              {pkg.location && (
-                                <div className="result-location">
-                                  {pkg.location.district}, {pkg.location.city}
-                                </div>
-                              )}
                             </div>
+
+                            {/* Branch info with expandable list */}
+                            {pkg.total_branch_count > 0 && (
+                              <div className="branch-info">
+                                {pkg.location_match === 'district' && pkg.matched_branch_count > 0 ? (
+                                  <div className="branch-match-indicator matched">
+                                    <span className="match-count">{pkg.matched_branch_count} chi nhánh tại {parsedLocation?.district}</span>
+                                    {pkg.other_branch_count > 0 && (
+                                      <span className="other-count">+{pkg.other_branch_count} chi nhánh khác</span>
+                                    )}
+                                    <button
+                                      className="btn-toggle-branches"
+                                      onClick={() => toggleBranches(pkg.id)}
+                                    >
+                                      {expandedBranches[pkg.id] ? 'Ẩn' : 'Xem'}
+                                    </button>
+                                  </div>
+                                ) : pkg.location_match === 'city' ? (
+                                  <div className="branch-match-indicator nearby">
+                                    <span className="match-count">{pkg.nearby_branch_count} chi nhánh cùng TP</span>
+                                    <button
+                                      className="btn-toggle-branches"
+                                      onClick={() => toggleBranches(pkg.id)}
+                                    >
+                                      {expandedBranches[pkg.id] ? 'Ẩn' : 'Xem'}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="branch-match-indicator">
+                                    <span className="match-count">{pkg.total_branch_count} chi nhánh</span>
+                                    {pkg.primary_branch && (
+                                      <span className="primary-branch">{pkg.primary_branch.district}</span>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Expanded branch list */}
+                                {expandedBranches[pkg.id] && pkg.matched_branches && (
+                                  <div className="branch-list">
+                                    {pkg.matched_branches.map((branch, idx) => (
+                                      <div key={branch.id || idx} className="branch-item">
+                                        <span className="branch-name">{branch.name}</span>
+                                        <span className="branch-address">{branch.address}</span>
+                                      </div>
+                                    ))}
+                                    {pkg.matched_branch_count > 5 && (
+                                      <div className="branch-more">
+                                        +{pkg.matched_branch_count - 5} chi nhánh khác...
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
 
                             {/* Truncated description */}
                             {(pkg.description || pkg.short_description) && (

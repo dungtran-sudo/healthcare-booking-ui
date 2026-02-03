@@ -252,6 +252,99 @@ body {
   font-weight: 600;
 }
 
+.location-filter-indicator.no-match {
+  background: #fff3e0;
+  border-color: #ffcc80;
+}
+
+.location-filter-indicator.no-match .location-icon {
+  color: #e65100;
+}
+
+/* Branch info in result cards */
+.branch-info {
+  margin: 0.75rem 0;
+  padding: 0.5rem 0.75rem;
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+
+.branch-match-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.branch-match-indicator.matched .match-count {
+  color: #2e7d32;
+  font-weight: 600;
+}
+
+.branch-match-indicator.nearby .match-count {
+  color: #ed6c02;
+  font-weight: 500;
+}
+
+.branch-match-indicator .other-count {
+  color: #666;
+}
+
+.branch-match-indicator .primary-branch {
+  color: #666;
+  font-size: 0.75rem;
+}
+
+.btn-toggle-branches {
+  background: none;
+  border: none;
+  color: #0066cc;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0.125rem 0.5rem;
+  margin-left: auto;
+}
+
+.btn-toggle-branches:hover {
+  text-decoration: underline;
+}
+
+.branch-list {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+.branch-item {
+  display: flex;
+  flex-direction: column;
+  padding: 0.375rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+.branch-item:last-child {
+  border-bottom: none;
+}
+
+.branch-name {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.branch-address {
+  font-size: 0.75rem;
+  color: #666;
+  margin-top: 0.125rem;
+}
+
+.branch-more {
+  font-size: 0.75rem;
+  color: #666;
+  font-style: italic;
+  padding-top: 0.375rem;
+}
+
 /* Location display in result cards */
 .result-location {
   font-size: 0.8125rem;
