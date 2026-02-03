@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
-import SmartSearch from './SmartSearch';
 import { useCache } from './CacheContext';
 
 const API_URL = process.env.REACT_APP_API_URL;
@@ -128,11 +127,11 @@ function App() {
   const searchInputRef = useRef(null);
   const suggestionsRef = useRef(null);
 
+  // State for expanded descriptions
+  const [expandedDescriptions, setExpandedDescriptions] = useState({});
+
   // Use cached popular services
   const popularServices = cachedPopularServices || [];
-
-  // Smart Search mode toggle
-  const [searchMode, setSearchMode] = useState('regular'); // 'regular' or 'smart'
 
   // Debounced search query for suggestions
   const debouncedQuery = useDebounce(searchQuery, 300);
@@ -352,67 +351,53 @@ function App() {
     setDisplayedTests(prev => prev + 10);
   };
 
-  // Perform search with given query
+  // Toggle description expansion
+  const toggleDescription = (id) => {
+    setExpandedDescriptions(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
+  // Truncate description helper
+  const truncateDescription = (text, maxLength = 100) => {
+    if (!text) return '';
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength).trim() + '...';
+  };
+
+  // Perform search with given query using V2 API
   const performSearch = useCallback(async (query) => {
     if (!query?.trim()) return;
 
     setLoading(true);
     setShowSuggestions(false);
     setHasSearched(true);
+    setExpandedDescriptions({});
 
     try {
-      const normalizedQuery = removeAccents(query);
       const response = await fetch(
-        `${API_URL}/api/search/services?q=${encodeURIComponent(normalizedQuery)}`
+        `${API_URL}/api/v2/search?q=${encodeURIComponent(query)}`
       );
       const data = await response.json();
 
-      // Filter packages: only root packages
-      let pkgs = data.data.filter(s =>
-        s.service_type === 'package' &&
-        s.parent_service_id === null
-      );
+      if (data.success) {
+        // V2 API returns packages and services separately with location info
+        setPackages(data.packages || []);
+        setIndividualTests(data.services || []);
+        setDisplayedPackages(10);
+        setDisplayedTests(10);
 
-      // Filter tests: ALL atomic services
-      let tests = data.data.filter(s =>
-        s.service_type === 'atomic'
-      );
-
-      // Sort packages by relevance
-      pkgs = pkgs.map(pkg => ({
-        ...pkg,
-        relevanceScore: calculateRelevance(pkg, query)
-      })).sort((a, b) => b.relevanceScore - a.relevanceScore);
-
-      // Sort tests by relevance, prioritizing standalone tests
-      tests = tests.map(test => ({
-        ...test,
-        relevanceScore: calculateRelevance(test, query),
-        isInPackage: test.parent_service_id !== null
-      })).sort((a, b) => {
-        // Primary sort: by relevance
-        if (b.relevanceScore !== a.relevanceScore) {
-          return b.relevanceScore - a.relevanceScore;
+        // Auto-switch to tab with more results
+        if (data.packages?.length > 0 && (!data.services || data.services.length === 0)) {
+          setActiveTab('packages');
+        } else if (data.services?.length > 0 && (!data.packages || data.packages.length === 0)) {
+          setActiveTab('tests');
         }
-        // Secondary sort: standalone tests first
-        if (a.isInPackage !== b.isInPackage) {
-          return a.isInPackage ? 1 : -1;
-        }
-        return 0;
-      });
-
-      setPackages(pkgs);
-      setIndividualTests(tests);
-      setDisplayedPackages(10);
-      setDisplayedTests(10);
-
-      // Auto-switch to tab with more results
-      if (pkgs.length > 0 && tests.length === 0) {
-        setActiveTab('packages');
-      } else if (tests.length > 0 && pkgs.length === 0) {
-        setActiveTab('tests');
+      } else {
+        setPackages([]);
+        setIndividualTests([]);
       }
-
     } catch (error) {
       alert('Lỗi tìm kiếm: ' + error.message);
     }
@@ -618,33 +603,6 @@ function App() {
       {/* SEARCH VIEW */}
       {currentView === 'search' && (
         <div className="container">
-          {/* Search Mode Toggle */}
-          <div className="search-mode-toggle">
-            <button
-              className={`mode-button ${searchMode === 'regular' ? 'active' : ''}`}
-              onClick={() => setSearchMode('regular')}
-            >
-              Tìm theo tên
-            </button>
-            <button
-              className={`mode-button ${searchMode === 'smart' ? 'active' : ''}`}
-              onClick={() => setSearchMode('smart')}
-            >
-              Tìm theo triệu chứng
-            </button>
-          </div>
-
-          {/* Smart Search Mode */}
-          {searchMode === 'smart' && (
-            <SmartSearch
-              onSelectService={(service) => {
-                handleSelectService(service);
-              }}
-            />
-          )}
-
-          {/* Regular Search Mode */}
-          {searchMode === 'regular' && (
           <div className="search-section">
             <div className="search-box-wrapper">
               <div className="search-box">
@@ -675,8 +633,8 @@ function App() {
                       className="suggestion-item"
                       onClick={() => handleSuggestionSelect(suggestion)}
                     >
-                      <span className="suggestion-icon">
-                        {suggestion.type === 'package' ? '📦' : '🔬'}
+                      <span className={`suggestion-type ${suggestion.type}`}>
+                        {suggestion.type === 'package' ? 'Gói' : 'XN'}
                       </span>
                       <div className="suggestion-content">
                         <span className="suggestion-name">{suggestion.name}</span>
@@ -706,8 +664,8 @@ function App() {
                       className="popular-item"
                       onClick={() => handlePopularSelect(service)}
                     >
-                      <span className="popular-icon">
-                        {service.service_type === 'package' ? '📦' : '🔬'}
+                      <span className={`popular-type ${service.service_type}`}>
+                        {service.service_type === 'package' ? 'Gói' : 'XN'}
                       </span>
                       <span className="popular-name">{service.provider_service_name_vn}</span>
                     </div>
@@ -751,76 +709,71 @@ function App() {
 
                             <div className="result-header">
                               <div className="result-title">
-                                {highlightMatch(pkg.provider_service_name_vn, searchQuery)}
+                                {highlightMatch(pkg.name || pkg.provider_service_name_vn, searchQuery)}
                               </div>
                               <div className="result-meta">
-                                <span className="provider-name">{pkg.providers?.brand_name_vn}</span>
+                                <span className="provider-name">{pkg.provider?.name || pkg.providers?.brand_name_vn}</span>
                                 <span className="price">
-                                  {pkg.pricing_data && pkg.pricing_data.length > 0 && (
-                                    <span className="price-prefix">Từ </span>
-                                  )}
-                                  {getPriceDisplay(pkg)}
+                                  {pkg.price ? `${pkg.price.toLocaleString('vi-VN')} đ` : getPriceDisplay(pkg)}
                                 </span>
                               </div>
-                              {pkg.pricing_data && pkg.pricing_data.length > 0 && (
-                                <div className="tier-badge">{pkg.pricing_data.length} mức giá</div>
+                              {pkg.location && (
+                                <div className="result-location">
+                                  {pkg.location.district}, {pkg.location.city}
+                                </div>
                               )}
                             </div>
 
-                            {pkg.suitable_for && pkg.suitable_for.length > 0 && (
-                              <div className="suitable-for-box">
-                                <div className="suitable-for-header">PHÙ HỢP VỚI:</div>
-                                <div className="suitable-for-list">
-                                  {pkg.suitable_for.map((item, i) => (
-                                    <div key={i} className="suitable-for-item">{item}</div>
-                                  ))}
-                                </div>
-                                {pkg.target_age_group && (
-                                  <div className="age-group">Độ tuổi: {pkg.target_age_group}</div>
+                            {/* Truncated description */}
+                            {(pkg.description || pkg.short_description) && (
+                              <div className="result-description">
+                                {expandedDescriptions[pkg.id]
+                                  ? (pkg.description || pkg.short_description)
+                                  : truncateDescription(pkg.description || pkg.short_description, 100)
+                                }
+                                {(pkg.description || pkg.short_description)?.length > 100 && (
+                                  <button
+                                    className="btn-expand-desc"
+                                    onClick={() => toggleDescription(pkg.id)}
+                                  >
+                                    {expandedDescriptions[pkg.id] ? 'Thu gọn' : 'Xem thêm'}
+                                  </button>
                                 )}
                               </div>
                             )}
 
-                            {pkg.key_benefits && pkg.key_benefits.length > 0 && (
-                              <div className="benefits">
-                                {pkg.key_benefits.slice(0, 3).map((benefit, i) => (
-                                  <div key={i} className="benefit-item">{benefit}</div>
-                                ))}
-                              </div>
-                            )}
-
                             <div className="result-actions">
-                              <button 
+                              <button
                                 className="btn-secondary"
                                 onClick={() => loadPackageComponents(pkg.id)}
                               >
                                 {expandedPackage === pkg.id ? 'Ẩn chi tiết' : 'Xem gói bao gồm'}
                               </button>
-                              <button 
+                              <button
                                 className="btn-primary btn-choose-package"
-                                onClick={() => handleSelectService(pkg)}
+                                onClick={() => handleSelectService({
+                                  ...pkg,
+                                  provider_service_name_vn: pkg.name || pkg.provider_service_name_vn,
+                                  discounted_price: pkg.price || pkg.discounted_price,
+                                  providers: pkg.provider ? { brand_name_vn: pkg.provider.name, id: pkg.provider.id } : pkg.providers
+                                })}
                               >
                                 CHỌN GÓI NÀY
                               </button>
                             </div>
 
-                            {expandedPackage === pkg.id && packageComponents[pkg.id] && (
+                            {expandedPackage === pkg.id && (pkg.components || packageComponents[pkg.id]) && (
                               <div className="package-components">
                                 <div className="components-header">
-                                  Gói bao gồm {packageComponents[pkg.id].length} xét nghiệm:
+                                  Gói bao gồm {(pkg.components || packageComponents[pkg.id]).length} xét nghiệm:
                                 </div>
                                 <div className="components-list">
-                                  {packageComponents[pkg.id].map((comp, idx) => (
+                                  {(pkg.components || packageComponents[pkg.id]).map((comp, idx) => (
                                     <div key={idx} className="component-item">
                                       <span className="component-number">{idx + 1}.</span>
                                       <span className="component-name">
-                                        {comp.component?.display_name || comp.component?.provider_service_name_vn}
+                                        {comp.name || comp.component?.display_name || comp.component?.provider_service_name_vn}
                                       </span>
-                                      {(comp.component?.display_price || comp.component?.discounted_price) && (
-                                        <span className="component-price">
-                                          {(comp.component?.display_price || comp.component?.discounted_price)?.toLocaleString('vi-VN')} đ
-                                        </span>
-                                      )}
                                     </div>
                                   ))}
                                 </div>
@@ -846,72 +799,85 @@ function App() {
                   {/* TESTS TAB */}
                   {activeTab === 'tests' && individualTests.length > 0 && (
                     <div className="tests-tab">
-                      <div className="warning-box">
-                        ⚠️ Khuyến nghị đặt gói để tiết kiệm chi phí
-                      </div>
-
                       <div className="results-list">
-                        {individualTests.slice(0, displayedTests).map(test => (
-                          <div key={test.id} className="result-card test-card">
-                            <div className="result-header">
-                              <div className="result-title">
-                                {highlightMatch(test.provider_service_name_vn, searchQuery)}
+                        {individualTests.slice(0, displayedTests).map(test => {
+                          const testName = test.name || test.provider_service_name_vn;
+                          const testPrice = test.price || test.discounted_price;
+                          const testProvider = test.provider?.name || test.providers?.brand_name_vn;
+                          const testDesc = test.description || test.short_description;
+
+                          return (
+                            <div key={test.id} className="result-card test-card">
+                              <div className="result-header">
+                                <div className="result-title">
+                                  {highlightMatch(testName, searchQuery)}
+                                </div>
+                                <div className="result-meta">
+                                  <span className="provider-name">{testProvider}</span>
+                                  {testPrice ? (
+                                    <span className="price">{testPrice.toLocaleString('vi-VN')} đ</span>
+                                  ) : (
+                                    <span className="price-unavailable">Liên hệ</span>
+                                  )}
+                                </div>
+                                {test.location && (
+                                  <div className="result-location">
+                                    {test.location.district}, {test.location.city}
+                                  </div>
+                                )}
                               </div>
-                              <div className="result-meta">
-                                <span className="provider-name">{test.providers?.brand_name_vn}</span>
-                                {test.discounted_price ? (
-                                  <span className="price">{test.discounted_price?.toLocaleString('vi-VN')} đ</span>
+
+                              {/* Truncated description */}
+                              {testDesc && (
+                                <div className="result-description">
+                                  {expandedDescriptions[`test-${test.id}`]
+                                    ? testDesc
+                                    : truncateDescription(testDesc, 100)
+                                  }
+                                  {testDesc.length > 100 && (
+                                    <button
+                                      className="btn-expand-desc"
+                                      onClick={() => toggleDescription(`test-${test.id}`)}
+                                    >
+                                      {expandedDescriptions[`test-${test.id}`] ? 'Thu gọn' : 'Xem thêm'}
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+
+                              <div className="result-actions">
+                                {testPrice ? (
+                                  <>
+                                    {testCart.find(t => t.id === test.id) ? (
+                                      <button
+                                        className="btn-added"
+                                        onClick={() => removeFromCart(test.id)}
+                                      >
+                                        Đã thêm
+                                      </button>
+                                    ) : (
+                                      <button
+                                        className="btn-primary"
+                                        onClick={() => addToCart({
+                                          ...test,
+                                          provider_service_name_vn: testName,
+                                          discounted_price: testPrice,
+                                          providers: test.provider ? { brand_name_vn: testProvider, id: test.provider.id } : test.providers
+                                        })}
+                                      >
+                                        + Thêm vào giỏ
+                                      </button>
+                                    )}
+                                  </>
                                 ) : (
-                                  <span className="price-unavailable">Liên hệ</span>
+                                  <button className="btn-disabled" disabled>
+                                    Không thể đặt trực tuyến
+                                  </button>
                                 )}
                               </div>
                             </div>
-                            {/* NEW: Show if test is in a package */}
-    {test.parent_service_id && (
-      <div className="test-package-note">
-        💡 Tiết kiệm hơn khi đặt gói
-      </div>
-    )}
-
-    {test.short_description && (
-      <div className="test-description">{test.short_description}</div>
-    )}
-
-    <div className="result-actions">
-      {/* ... existing buttons ... */}
-    </div>
-
-                            {test.short_description && (
-                              <div className="test-description">{test.short_description}</div>
-                            )}
-
-                            <div className="result-actions">
-                              {test.discounted_price ? (
-                                <>
-                                  {testCart.find(t => t.id === test.id) ? (
-                                    <button 
-                                      className="btn-added"
-                                      onClick={() => removeFromCart(test.id)}
-                                    >
-                                      ✓ Đã thêm
-                                    </button>
-                                  ) : (
-                                    <button 
-                                      className="btn-primary"
-                                      onClick={() => addToCart(test)}
-                                    >
-                                      + Thêm vào giỏ
-                                    </button>
-                                  )}
-                                </>
-                              ) : (
-                                <button className="btn-disabled" disabled>
-                                  Không thể đặt trực tuyến
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
 
                       {individualTests.length > displayedTests && (
@@ -948,7 +914,6 @@ function App() {
               </div>
             )}
           </div>
-          )}
         </div>
       )}
 
@@ -1363,14 +1328,14 @@ function App() {
             onClick={() => setShowCart(true)}
             style={{ display: showCart ? 'none' : 'flex' }}
           >
-            <span className="cart-fab-icon">🛒</span>
+            <span className="cart-fab-icon">Giỏ</span>
             <span className="cart-fab-badge">{testCart.length}</span>
           </button>
 
           <div className={`floating-cart ${showCart ? 'cart-open' : ''}`}>
             <div className="cart-header" onClick={() => setShowCart(!showCart)}>
               <div className="cart-header-left">
-                <span className="cart-icon">🛒</span>
+                <span className="cart-icon">Giỏ</span>
                 <span className="cart-title">Giỏ xét nghiệm ({testCart.length})</span>
               </div>
               <div className="cart-header-right">

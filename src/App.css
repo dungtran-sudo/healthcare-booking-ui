@@ -229,6 +229,39 @@ body {
   font-style: italic;
 }
 
+/* Location display */
+.result-location {
+  font-size: 0.8125rem;
+  color: #888;
+  margin-top: 0.375rem;
+}
+
+/* Description with truncation */
+.result-description {
+  font-size: 0.875rem;
+  color: #555;
+  line-height: 1.5;
+  margin: 0.75rem 0;
+  display: -webkit-box;
+  overflow: hidden;
+}
+
+.btn-expand-desc {
+  display: inline;
+  background: none;
+  border: none;
+  color: #0066cc;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 0.25rem;
+  font-weight: 500;
+}
+
+.btn-expand-desc:hover {
+  text-decoration: underline;
+}
+
 /* Recommended badge */
 .recommended-badge {
   background: #0066cc;
@@ -482,10 +515,63 @@ body {
   border: 1px solid #ffe699;
   border-radius: 4px;
   padding: 0.875rem;
+  padding-left: 2.5rem;
   font-size: 0.875rem;
   color: #666;
   margin-bottom: 1rem;
   font-weight: 500;
+  position: relative;
+}
+
+.warning-box::before {
+  content: "!";
+  position: absolute;
+  left: 0.875rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  background: #f59e0b;
+  color: white;
+  font-weight: 700;
+  font-size: 0.75rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Test package note */
+.test-package-note {
+  background: #fff9e6;
+  border: 1px solid #ffe699;
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  padding-left: 2rem;
+  font-size: 0.8125rem;
+  color: #996600;
+  margin: 0.5rem 0;
+  font-weight: 500;
+  position: relative;
+}
+
+.test-package-note::before {
+  content: "i";
+  position: absolute;
+  left: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  background: #0066cc;
+  color: white;
+  font-weight: 700;
+  font-size: 0.6875rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-style: italic;
 }
 
 .test-description {
@@ -909,7 +995,8 @@ body {
 }
 
 .cart-icon {
-  font-size: 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
 }
 
 .cart-title {
@@ -1203,7 +1290,9 @@ body {
   }
 
   .cart-fab-icon {
-    font-size: 1.75rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: white;
   }
 
   .cart-fab-badge {
@@ -1548,9 +1637,24 @@ body {
   background: #f5f9ff;
 }
 
-.suggestion-icon {
-  font-size: 1.25rem;
+.suggestion-type {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
   flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.suggestion-type.package {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.suggestion-type.atomic {
+  background: #f3e5f5;
+  color: #7b1fa2;
 }
 
 .suggestion-content {
@@ -1600,7 +1704,7 @@ body {
 }
 
 .popular-header::before {
-  content: "🔥";
+  content: "";
 }
 
 .popular-list {
@@ -1628,9 +1732,24 @@ body {
   box-shadow: 0 2px 8px rgba(0, 102, 204, 0.15);
 }
 
-.popular-icon {
-  font-size: 1.125rem;
+.popular-type {
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 0.1875rem 0.375rem;
+  border-radius: 3px;
   flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.popular-type.package {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.popular-type.atomic {
+  background: #f3e5f5;
+  color: #7b1fa2;
 }
 
 .popular-name {
